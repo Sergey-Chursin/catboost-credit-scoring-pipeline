@@ -1,0 +1,7 @@
+.DS_Store
+.ipynb_checkpoints
+prepared_data/
+catboost_info/
+catboost_models/
+processed_chunk_*.parquet
+
