@@ -4,4 +4,4 @@ prepared_data/
 catboost_info/
 catboost_models/
 processed_chunk_*.parquet
-
+optuna_catboost.db
