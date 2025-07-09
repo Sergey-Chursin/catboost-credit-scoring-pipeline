@@ -37,6 +37,7 @@ pip install -r requirements.txt
 ```
 
 - Для работы с исходными файлами датасета в папке `train_data`  
+  и Jupiter ноутбуками из-за превышения размера в 50 MB
   используется [Git Large File Storage (Git LFS)](https://git-lfs.github.com/).  
   Перед клонированием репозитория убедитесь, что Git LFS установлен и инициализирован:
 ```shell
@@ -146,9 +147,8 @@ pip install -r requirements.txt
 Самым важным для модели признаком стал агрегированный для каждого клиента показатель — разница между средним количеством статусов платежей 0 и 1 за последние 12 месяцев (enc_paym_avg_0_1_this_year_diff).  
 Этот признак вычисляется как разница средней частоты «статуса 0» и «статуса 1» на один кредит за год и позволяет модели улавливать динамику и соотношение между разными типами платежных статусов, отражая изменения в поведении клиента за последнее время.
 
-<img src="images/Feature_importance_visualization.png" alt="Feature importance visualization" width="400" />
-
-<img src="images/Feature_importance_values.png" alt="Feature importance values" width="400" />
+<img src="images/Feature_importance_visualization.png" alt="Feature importance visualization" width="800" />
+<img src="images/Feature_importance_values.png" alt="Feature importance values" width="500" />
 
 
 
