@@ -23,6 +23,7 @@ This project implements a credit scoring system to predict client default risk u
 Для получения итогового бинарного предсказания (0 или 1) используется порог, который подбирается двумя способами: по максимальной разнице между полнотой (TPR) и долей ложноположительных результатов (FPR), соответствующей оптимальной точке ROC-кривой, либо исходя из заданного минимального значения полноты (TPR), что позволяет адаптировать модель под бизнес-требования.
 
 Проект является учебным, завершает курс Junior ML Engineer и служит основой портфолио.
+
 ---
 
 ## Требования / Requirements
@@ -46,8 +47,15 @@ git lfs install
 ## Установка и запуск / Getting Started
 
 1. Клонируйте репозиторий:  
+
+Вы можете клонировать репозиторий с помощью SSH:
+
 ```shell
-git clone <url-репозитория> 
+git clone git@github.com:Sergey-Chursin/catboost-credit-scoring-pipeline.git
+```
+Или с помощью HTTPS:
+```shell
+git clone https://github.com/Sergey-Chursin/catboost-credit-scoring-pipeline.git
 ```
 
 2. Создайте и активируйте виртуальное окружение: 
@@ -138,7 +146,10 @@ pip install -r requirements.txt
 Самым важным для модели признаком стал агрегированный для каждого клиента показатель — разница между средним количеством статусов платежей 0 и 1 за последние 12 месяцев (enc_paym_avg_0_1_this_year_diff).  
 Этот признак вычисляется как разница средней частоты «статуса 0» и «статуса 1» на один кредит за год и позволяет модели улавливать динамику и соотношение между разными типами платежных статусов, отражая изменения в поведении клиента за последнее время.
 
-<img src="images/exampleScreenshot 2025-07-09 at 10.26.34.png" alt="Feature importance visualization" width="400" />
+<img src="images/Feature_importance_visualization.png" alt="Feature importance visualization" width="400" />
+
+<img src="images/Feature_importance_values.png" alt="Feature importance values" width="400" />
+
 
 
 ### Общая схема построения и оценки признаков. 
