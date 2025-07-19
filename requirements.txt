@@ -13,9 +13,10 @@ bleach @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_ble
 Brotli @ file:///Users/runner/miniforge3/conda-bld/brotli-split_1725267521616/work
 cached-property @ file:///home/conda/feedstock_root/build_artifacts/cached_property_1615209429212/work
 catboost @ file:///Users/runner/miniforge3/conda-bld/catboost_1738176272610/work/catboost/python-package/dist/catboost-1.2.7-cp312-cp312-macosx_11_0_x86_64.whl#sha256=7a5c7e864807668af8fcaa9ff286f0eeda73d7f4bc2113b7b624fdc85e1be0f1
-certifi @ file:///home/conda/feedstock_root/build_artifacts/certifi_1749972191589/work/certifi
+certifi @ file:///home/conda/feedstock_root/build_artifacts/certifi_1752493286596/work/certifi
 cffi @ file:///Users/runner/miniforge3/conda-bld/cffi_1725560565029/work
 charset-normalizer @ file:///home/conda/feedstock_root/build_artifacts/charset-normalizer_1735929714516/work
+cloudpickle @ file:///home/conda/feedstock_root/build_artifacts/cloudpickle_1736947526808/work
 colorama @ file:///home/conda/feedstock_root/build_artifacts/colorama_1733218098505/work
 colorlog @ file:///home/conda/feedstock_root/build_artifacts/colorlog_1733258404285/work
 comm @ file:///home/conda/feedstock_root/build_artifacts/comm_1733502965406/work
@@ -69,6 +70,7 @@ jupyterlab_server @ file:///home/conda/feedstock_root/build_artifacts/jupyterlab
 jupyterlab_widgets @ file:///home/conda/feedstock_root/build_artifacts/jupyterlab_widgets_1744291043727/work
 kiwisolver @ file:///Users/runner/miniforge3/conda-bld/kiwisolver_1736908211538/work
 kmodes @ file:///home/conda/feedstock_root/build_artifacts/kmodes_1662507492080/work
+llvmlite==0.44.0
 loguru==0.7.3
 Mako @ file:///home/conda/feedstock_root/build_artifacts/mako_1744317760971/work
 MarkupSafe @ file:///Users/runner/miniforge3/conda-bld/markupsafe_1733219691421/work
@@ -84,6 +86,7 @@ nbformat @ file:///home/conda/feedstock_root/build_artifacts/nbformat_1733402752
 nest_asyncio @ file:///home/conda/feedstock_root/build_artifacts/nest-asyncio_1733325553580/work
 notebook @ file:///home/conda/feedstock_root/build_artifacts/notebook_1697550696415/work
 notebook_shim @ file:///home/conda/feedstock_root/build_artifacts/notebook-shim_1733408315203/work
+numba @ file:///Users/runner/miniforge3/conda-bld/numba_1744232074375/work
 numpy @ file:///Users/runner/miniforge3/conda-bld/numpy_1707225541074/work/dist/numpy-1.26.4-cp312-cp312-macosx_10_9_x86_64.whl#sha256=c0e7d196d262a4694628c8965da758026291887ae6e907976eece62f7669407b
 openpyxl @ file:///Users/runner/miniforge3/conda-bld/openpyxl_1725460832546/work
 optuna @ file:///home/conda/feedstock_root/build_artifacts/optuna_1744686529628/work
@@ -128,8 +131,10 @@ scipy @ file:///Users/runner/miniforge3/conda-bld/scipy-split_1739790672351/work
 seaborn @ file:///home/conda/feedstock_root/build_artifacts/seaborn-split_1733730015268/work
 Send2Trash @ file:///Users/runner/miniforge3/conda-bld/send2trash_1733322099476/work
 setuptools==78.1.0
+shap @ file:///Users/runner/miniforge3/conda-bld/shap_1750151464135/work
 six @ file:///home/conda/feedstock_root/build_artifacts/six_1733380938961/work
 sklearn-compat @ file:///home/conda/feedstock_root/build_artifacts/sklearn-compat_1734794177910/work
+slicer @ file:///home/conda/feedstock_root/build_artifacts/slicer_1710029110974/work
 sniffio @ file:///home/conda/feedstock_root/build_artifacts/sniffio_1733244044561/work
 soupsieve @ file:///home/conda/feedstock_root/build_artifacts/soupsieve_1693929250441/work
 SQLAlchemy @ file:///Users/runner/miniforge3/conda-bld/sqlalchemy_1743109573893/work
