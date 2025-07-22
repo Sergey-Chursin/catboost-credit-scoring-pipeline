@@ -1,8 +1,6 @@
 .DS_Store
 .ipynb_checkpoints
-prepared_data/
 notebooks/catboost_info/
-catboost_models/
 processed_chunk_*.parquet
-optuna_catboost.db
 /pipeline/*.csv
+data/processed_data/
