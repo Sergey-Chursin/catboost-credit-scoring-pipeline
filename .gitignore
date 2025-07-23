@@ -3,4 +3,4 @@
 notebooks/catboost_info/
 processed_chunk_*.parquet
 /pipeline/*.csv
-data/processed_data/
+data/processed/
