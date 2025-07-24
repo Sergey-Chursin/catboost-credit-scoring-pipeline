@@ -4,3 +4,19 @@ notebooks/catboost_info/
 processed_chunk_*.parquet
 /pipeline/*.csv
 data/processed/
+
+# Временные файлы Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+
+# Настройки IDE
+.idea/
+
+# Virtual environments and build artifacts (игнорируем локальные окружения, build-файлы и метаданные)
+venv/
+*.env
+*.egg-info/
+build/
