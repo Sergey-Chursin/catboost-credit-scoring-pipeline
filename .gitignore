@@ -1,9 +1,11 @@
 .DS_Store
 .ipynb_checkpoints
 notebooks/catboost_info/
-processed_chunk_*.parquet
 /pipeline/*.csv
 data/processed/
+
+# технические файлы
+data/temp/
 
 # Временные файлы Python
 __pycache__/
