@@ -2,6 +2,35 @@ import os
 
 # Модуль с константами, параметрами, путями, списками и словарями для пайплайна.
 
+# Пути к директориям (относительные от корня проекта)
+
+"""
+Получаем абсолютный  путь до корня проекта.
+os.path.dirname(__file__) - даёт абсолютный путь до директории текущего файла (src)
+os.path.join(..., '..')) - даёт путь до директории на уровень выше (root)
+os.path.abspath(...) - даёт абсолютный путь до root
+"""
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+# Константы для функции load_dataset
+# Путь до директории с исходными данными
+RAW_DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'raw')
+# Путь до директории с техническими данными
+TEMP_DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'temp')
+#  Количество *.pq (parquet) файлов для закачки функцией prepare_transactions_dataset
+NUM_PARTS_TOTAL = 12
+
+# Константы для функции split_dataset_by_target
+# Путь к таргет датасету
+TARGET_PATH = os.path.join(PROJECT_ROOT, 'data', 'target', 'train_target.csv')
+# Доля тренировочной выборки
+TRAIN_SIZE = 0.8
+# Зерно рандома для разделения
+SEED_SPLIT_DATASET = 0
+# Колонка для стратификации
+STRATIFY_COL = 'flag'
+
+
 
 # Random seed для воспроизводимости
 SEED = 0
@@ -12,10 +41,7 @@ SHUFFLE = True
 # Список категориалбных фичей в CatBoostEnsembleClassifier
 CAT_FEATURES = []
 
-# Пути к директориям (относительные от корня проекта)
-MODELS_PATH = '../models/'  # Путь к сохранённым моделям (.bin, .pkl)
-PROCESSED_DATA_PATH = '../processed_data/'  # Путь к подготовленным данным (X_train.csv и т.д.)
-PREDICTIONS_PATH = '../predictions/'  # Путь к предсказаниям (test_predict.pkl)
+
 
 """
 Словари и списки признаков для управления функциями 
@@ -354,4 +380,4 @@ WEIGHTS_LIST = [
 Вычисляется в roc_curve_and_treshholds_selections.ipynb 
 в главе Optimal Thresholds selection.
 """
-THRESHOLD = 0.4964
+THRESHOLD = 0.49642
