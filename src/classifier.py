@@ -5,7 +5,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import StratifiedKFold
 
 
-from src.config import (
+from config import (
     CAT_FEATURES,
     N_SPLIT,
     SEED,
