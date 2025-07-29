@@ -1,9 +1,10 @@
-from catboost import CatBoostClassifier, Pool
+import logging
+
 import numpy as np
 import pandas as pd
+from catboost import CatBoostClassifier, Pool
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import StratifiedKFold
-
 
 from config import (
     CAT_FEATURES,
@@ -14,6 +15,13 @@ from config import (
     PARAMS_LIST,
     WEIGHTS_LIST
 )
+
+"""
+Создаём локальный логгер для этого модуля
+Он наследует настройки от root logger
+импортирующего файла (pipeline.py)
+"""
+logger = logging.getLogger(__name__)
 
 class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
     """
