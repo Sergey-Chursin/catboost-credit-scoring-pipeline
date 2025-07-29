@@ -372,11 +372,8 @@ def pre_since_opened_sum_mean_repeated_pipeline(
     # Добавляем отсутствующие 'id' с нулевыми значениями повторов
     all_sum_repeated = sum_repeated.reindex(df['id'].unique(), fill_value=0)
 
-    # Переименовываем Series для дальнейшего слияния
-    all_sum_repeated = all_sum_repeated.rename('pre_since_opened_repeated_prop')
-
-    # Объединяем с исходным DataFrame по 'id'
-    df = df.merge(all_sum_repeated, on='id', how='left')
+    # Добавляем новый столбец: для каждого 'id' записываем рассчитанную сумму повторов
+    df['pre_since_opened_repeated_prop'] = df['id'].map(all_sum_repeated)
 
     # Нормируем сумму повторов на количество записей 'rn_max' для каждого 'id'
     df['pre_since_opened_repeated_prop'] = (
