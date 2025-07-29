@@ -30,8 +30,10 @@ SEED_SPLIT_DATASET = 0
 # Колонка для стратификации
 STRATIFY_COL = 'flag'
 
+# Доля датасета для расчета медиан в SampleMedianImputer
+SAMPLE_FRAC = 0.1
 
-
+# Константы классификатора
 # Random seed для воспроизводимости
 SEED = 0
 # Количество фолдов в CatBoostEnsembleClassifier
@@ -40,6 +42,9 @@ N_SPLIT = 5
 SHUFFLE = True
 # Список категориалбных фичей в CatBoostEnsembleClassifier
 CAT_FEATURES = []
+
+# Путь сохранения обученного пайплайна
+PIPELINE_PATH = os.path.join(PROJECT_ROOT, 'models', 'main_pipeline.pkl')
 
 
 
@@ -166,7 +171,6 @@ MEAN_FREQ_SOURCE_LIST = [
 функцией drop_columns_drop_duplicates_pipeline
 """
 DROP_LIST = [
-    'id',
     'rn',
     'pre_since_opened',
     'pre_since_confirmed',
