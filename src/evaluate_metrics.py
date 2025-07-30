@@ -8,10 +8,14 @@ from config import (
     TRAIN_SIZE,
     SEED_SPLIT_DATASET,
     STRATIFY_COL,
-    PROBA_TEST_PREDICT
+    PROBA_TEST_PREDICT,
+    CLASSES_TEST_PREDICT
 )
 
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import (
+    roc_auc_score,
+    accuracy_score
+)
 
 import pickle
 
@@ -66,7 +70,7 @@ def split_target_only(
         'y_test': y_test[stratify_col]
     }
 
-def evaluate_metrics(
+def evaluate_auc_score(
         y_true: Sequence,
         y_score: Sequence,
         verbose: bool = True
@@ -92,6 +96,28 @@ def evaluate_metrics(
         print(f"AUC on test set: {auc:.4f}")
     return auc
 
+def evaluate_accuracy_score(
+        y_true: Sequence,
+        y_pred: Sequence,
+        verbose: bool = True
+) -> float:
+    """
+    Вычисляет и выводит/логирует значение Accuracy для тестовой выборки.
+
+    Args:
+        y_true (Sequence): Истинные метки классов (обычно 1D array, pandas.Series или список).
+        y_pred (Sequence): Предсказанные классы (обычно 1D array, pandas.Series или список меток классов).
+        verbose (bool, optional): Если True, печатает Accuracy в консоль. По умолчанию True.
+
+    Returns:
+        float: Значение метрики Accuracy на тестовой выборке.
+    """
+    acc = accuracy_score(y_true, y_pred)
+    logger.info(f"Accuracy on test set: {acc:.4f}")
+    if verbose:
+        print(f"Accuracy on test set: {acc:.4f}")
+    return acc
+
 
 if __name__ == "__main__":
     y_dict = split_target_only()
@@ -103,10 +129,22 @@ if __name__ == "__main__":
 
     if verbose:
         print(
-            f'Loaded predicted probabilities from {PROBA_TEST_PREDICT}\n,'
+            f'Loaded predicted probabilities from {PROBA_TEST_PREDICT}\n'
             f' shape: {probabilities.shape}'
         )
 
+    # Загружаем предикты классов
+    with open(CLASSES_TEST_PREDICT, 'rb') as f:
+        classes = pickle.load(f)
+
+    if verbose:
+        print(
+            f'Loaded predicted classes from {CLASSES_TEST_PREDICT}\n'
+            f' shape: {classes.shape}'
+        )
+    # Проверяем совпадение длинн предикта и таргета -
+    # выбрасываем предупреждение если нет.
+    assert len(y_true) == len(classes), "Длины y_true и classes не совпадают!"
 
     # получаем вероятности класса 1
     y_score = probabilities[:, 1]
@@ -114,8 +152,14 @@ if __name__ == "__main__":
     # выбрасываем предупреждение если нет.
     assert len(y_true) == len(y_score), "Длины y_true и y_score не совпадают!"
 
-    # Вызываем функцию оценки
-    evaluate_metrics(
+    # Вызываем функцию оценки AUC
+    evaluate_auc_score(
             y_true,
             y_score,
+    )
+
+    # Вызываем функцию оценки accuracy
+    evaluate_accuracy_score(
+        y_true,
+        classes,
     )
