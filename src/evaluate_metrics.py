@@ -1,6 +1,7 @@
 import logging
 from typing import Sequence
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
 
 from config import (
@@ -87,6 +88,11 @@ def evaluate_auc_score(
     Returns:
         float: Значение метрики ROC AUC на тестовой выборке.
     """
+    # Если подали двумерный массив (n_samples, 2) — берём вероятности для класса 1
+    y_score = np.asarray(y_score)
+    if y_score.ndim == 2 and y_score.shape[1] == 2:
+        y_score = y_score[:, 1]
+
     # Считаем метрику
     auc = roc_auc_score(y_true, y_score)
 
