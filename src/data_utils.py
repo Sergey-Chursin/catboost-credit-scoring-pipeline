@@ -213,6 +213,48 @@ def split_dataset_by_target(
 
     return {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test}
 
+def split_target_only(
+        path_to_target: str = TARGET_PATH,
+        train_size: float = TRAIN_SIZE,
+        random_state: int = SEED_SPLIT_DATASET,
+        stratify_col: str = STRATIFY_COL,
+        verbose: bool = True
+):
+    """
+    Разделяет только таргет на train/test подвыборки.
+
+    Args:
+        По умолчанию все аргументы берутся из config.
+        path_to_target: путь к target.csv
+        train_size: доля train
+        random_state: seed для воспроизводимости
+        stratify_col: по какой колонке стратифицироваться
+        verbose: Вывод print. По умолчанию True.
+    Returns:
+        dict с pandas.Series: {'y_train', 'y_test'}
+    """
+    target = pd.read_csv(path_to_target)
+    if verbose:
+        print(f'Loaded target from {path_to_target}'
+              f' (shape: {target.shape}'
+              )
+
+    y_train, y_test = train_test_split(
+        target,
+        train_size=train_size,
+        random_state=random_state,
+        stratify=target[stratify_col]
+    )
+    if verbose:
+        print(
+            f'y_train shape: {y_train.shape}\n'
+            f'y_test shape: {y_test.shape}'
+        )
+    return {
+        'y_train': y_train[stratify_col],
+        'y_test': y_test[stratify_col]
+    }
+
 def make_infer_file_path(
         output_type: str,
         data_path: str,

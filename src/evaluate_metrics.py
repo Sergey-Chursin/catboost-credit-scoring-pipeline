@@ -3,13 +3,8 @@ from typing import Sequence
 from typing import Dict, Optional, Any
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
 
 from config import (
-    TARGET_PATH,
-    TRAIN_SIZE,
-    SEED_SPLIT_DATASET,
-    STRATIFY_COL,
     PROBA_TEST_PREDICT,
     CLASSES_TEST_PREDICT,
     CLASSES_METRIC_LIST
@@ -22,6 +17,8 @@ from sklearn.metrics import (
 
 import pickle
 
+from data_utils import split_target_only
+
 """
 Создаём локальный логгер для этого модуля
 Он наследует настройки от root logger
@@ -29,49 +26,6 @@ import pickle
 """
 logger = logging.getLogger(__name__)
 verbose = True
-
-
-def split_target_only(
-        path_to_target: str = TARGET_PATH,
-        train_size: float = TRAIN_SIZE,
-        random_state: int = SEED_SPLIT_DATASET,
-        stratify_col: str = STRATIFY_COL,
-        verbose: bool = True
-):
-    """
-    Разделяет только таргет на train/test подвыборки.
-
-    Args:
-        По умолчанию все аргументы берутся из config.
-        path_to_target: путь к target.csv
-        train_size: доля train
-        random_state: seed для воспроизводимости
-        stratify_col: по какой колонке стратифицироваться
-        verbose: Вывод print. По умолчанию True.
-    Returns:
-        dict с pandas.Series: {'y_train', 'y_test'}
-    """
-    target = pd.read_csv(path_to_target)
-    if verbose:
-        print(f'Loaded target from {path_to_target}'
-              f' (shape: {target.shape}'
-              )
-
-    y_train, y_test = train_test_split(
-        target,
-        train_size=train_size,
-        random_state=random_state,
-        stratify=target[stratify_col]
-    )
-    if verbose:
-        print(
-            f'y_train shape: {y_train.shape}\n'
-            f'y_test shape: {y_test.shape}'
-        )
-    return {
-        'y_train': y_train[stratify_col],
-        'y_test': y_test[stratify_col]
-    }
 
 def evaluate_auc_score(
         y_true: Sequence,
