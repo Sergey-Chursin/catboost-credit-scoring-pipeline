@@ -2,8 +2,9 @@ import os
 import glob
 import logging
 import datetime
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Union
 import pandas as pd
+import numpy as np
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
@@ -302,6 +303,51 @@ def check_data_folder_and_count_files(
     logger.info(f'Count of files in data folder: {files_count}')
 
     return file_paths, files_count
+
+
+
+def save_predictions_with_id(
+    output_type: str,
+    ids: Union[np.ndarray, pd.Series, list],
+    predictions: np.ndarray,
+    output_path: str
+):
+    """
+    Сохраняет предсказания (proba или predict) вместе с id в .csv
+    Формат для proba поддерживает бинарный и многоклассовый формат:
+        id, proba_class_0, proba_class_1, ...
+    Формат для predict:
+        id, prediction
+
+    Args:
+        output_type (str): 'proba' или 'predict'
+        ids (array/Series/list): значения id для всех объектов
+        predictions (np.ndarray): массив предиктов (classes или вероятности)
+        output_path (str): итоговый путь к файлу .csv
+    """
+    df_pred = pd.DataFrame()
+    df_pred['id'] = ids
+
+    # Для вероятностей
+    if output_type == 'proba':
+        # Для вероятности одного класса
+        # (бинарная после слайсинга [:, 1])
+        if predictions.ndim == 1:
+            df_pred['proba'] = predictions
+        # Для бинарной и многоклассовой классификации
+        elif predictions.ndim == 2:
+            # Присвоим каждой вероятности свою колонку
+            for i in range(predictions.shape[1]):
+                df_pred[f'proba_class_{i}'] = predictions[:, i]
+        else:
+            raise ValueError(f"Unsupported predictions shape for proba: {predictions.shape}")
+    # Для меток классов
+    elif output_type == 'predict':
+        df_pred['prediction'] = predictions
+    else:
+        raise ValueError(f"Unsupported output_type: {output_type}")
+
+    df_pred.to_csv(output_path, index=False)
 
 
 # Добавим защитный блок main для тестов
