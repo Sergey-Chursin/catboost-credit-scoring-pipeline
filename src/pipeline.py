@@ -3,10 +3,8 @@ import os
 import argparse
 import glob
 import pickle
-from typing import Dict, Optional, Any
+from typing import Optional
 
-import numpy as np
-import pandas as pd
 
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
@@ -16,7 +14,6 @@ from config import (
     PIPELINE_PATH,
     PROBA_TEST_PREDICT,
     CLASSES_TEST_PREDICT,
-    CLASSES_METRIC_LIST,
     PARAMS_LIST,
     WEIGHTS_LIST,
     INFERENCE_OUTPUT_DIR
@@ -28,10 +25,8 @@ from data_utils import (
     check_data_folder_and_count_files
 )
 
-from evaluate_metrics import (
-    evaluate_auc_score,
-    evaluate_accuracy_score
-)
+from evaluate_metrics import compute_and_log_metrics
+
 
 # Переключатель уровня логирования
 from log_config import setup_logging
@@ -315,96 +310,7 @@ def load_pipeline(path=PIPELINE_PATH):
         raise FileNotFoundError(msg)
 
 
-def pred_and_metrics_compatible(y_pred: np.ndarray, eval_metric: str) -> bool:
-    """
-    Вспомогательная функция для compute_and_log_metrics.
-    Проверяет, соответствует ли тип y_pred требованиям конкретной метрики.
-    Возвращает True, если да (и можно использовать этот предикт для расчёта метрики), иначе False.
-    """
-    if eval_metric in CLASSES_METRIC_LIST:
-        # Метрики по меткам классов (accuracy, f1, ...): одномерный вектор целых чисел
-        # isinstance(y_pred, np.ndarray) -проверка на массив
-        # y_pred.ndim - проверка на рвзмерность
-        # np.issubdtype - проверка на тип
-        return (
-                isinstance(y_pred, np.ndarray)
-                and y_pred.ndim == 1
-                and np.issubdtype(y_pred.dtype, np.integer)
-        )
-    else:
-        # Метрики по вероятностям (auc, logloss, ...) — (n,2) float или (n,) float
-        # Добавлен вариант с predict_proba прошедшей слайсинг, то есть с одномерным
-        # массивом float
-        return (
-                isinstance(y_pred, np.ndarray)
-                and (
-                        (y_pred.ndim == 2 and y_pred.shape[1] == 2 and np.issubdtype(y_pred.dtype, np.floating))
-                        or (y_pred.ndim == 1 and np.issubdtype(y_pred.dtype, np.floating))
-                )
-        )
 
-def compute_and_log_metrics(
-    eval_metric: str,
-    pipe: Any,
-    train_test_dict: Dict[str, pd.DataFrame],
-    y_pred: Optional[np.ndarray] = None
-) -> Optional[float]:
-    """
-    Вычисляет и логирует выбранную метрику качества (AUC или Accuracy) на тестовой выборке.
-
-    Args:
-        eval_metric (str): Краткое имя метрики ('auc', 'acc', 'off').
-        pipe (Any): Обученный пайплайн.
-        train_test_dict (dict): Словарь с тестовыми данными, должен содержать ключи
-            'X_test' (pd.DataFrame) и 'y_test' (pd.Series или 1D np.array).
-        y_pred (np.ndarray, optional): заранее полученный предикт,
-             используется если совместим с eval_metric.
-
-    Returns:
-        Optional[float]: Значение метрики (ROC AUC или Accuracy) на тестовой выборке,
-            либо None, если выбран режим 'off' или флаг не введён.
-    """
-    logger.info("Function compute_and_log_metrics started")
-    # Словарь для маппинг диспетчеризации
-    eval_metrics_map = {
-        'auc': evaluate_auc_score,
-        'acc': evaluate_accuracy_score
-    }
-    # Выбираем функцию из словаря по аргументу eval_metric
-    func = eval_metrics_map.get(eval_metric)
-
-    # В случае off или отсутствия флага
-    if not func:
-        logger.info("No evaluation metric selected (off mode).")
-        return None
-    # Получаем тестовые данные из словаря
-    X_test = train_test_dict['X_test']
-    y_test = train_test_dict['y_test']
-
-    # Если подан y_pred нужного формата — используем его
-    # Проверка размерности предикта есть в функциях модуля evaluate_metrics
-    # verbose=False для отключения print() в функциях модуля evaluate_metrics
-    if y_pred is not None and pred_and_metrics_compatible(y_pred, eval_metric):
-        logger.info(f"Using provided y_pred for metric '{eval_metric}'")
-        result = func(y_test, y_pred, verbose=False)
-
-    else:
-        # Иначе делаем свежий инференс подходящего типа через pipeline
-        # Если для метрики нужны метки классов
-        if eval_metric in CLASSES_METRIC_LIST:
-            logger.info(f"Calculating {eval_metric.upper()}: performing predict")
-            # Делаем предикт
-            y_pred = pipe.predict(X_test)
-            # verbose=False для отключения print() в функциях модуля evaluate_metrics
-            result = func(y_test, y_pred, verbose=False)
-        else:
-            # В остальных случаях делаем predict_proba
-            logger.info(f"Calculating {eval_metric.upper()}: performing predict_proba")
-            y_pred = pipe.predict_proba(X_test)[:, 1]
-            # verbose=False для отключения print() в функциях модуля evaluate_metrics
-            result = func(y_test, y_pred, verbose=False)
-
-    return result
 
 
 
