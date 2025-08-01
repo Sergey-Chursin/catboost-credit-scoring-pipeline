@@ -1,6 +1,7 @@
 import os
 import glob
 import logging
+import datetime
 from typing import List, Optional, Dict, Tuple
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -211,6 +212,28 @@ def split_dataset_by_target(
                     )
 
     return {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test}
+
+def make_infer_file_path(
+        output_type: str,
+        data_path: str,
+        output_dir: str,
+        ext="csv"
+) -> str:
+    """
+    Генерирует путь к файлу для сохранения предикта на новых данных.
+    Формат имени: <output_type>__<имя_папки_источника>__<текущая_дата_и_время>.<ext>
+    """
+    # os.path.normpath(path) -приводит путь к "нормализованному" виду
+    # (убирает лишние слэши, точки, двойные слэши и пр.)
+    # os.path.basename(path) возвращает только "последнюю часть" пути — имя
+    # файла или последней папки.
+    base = os.path.basename(os.path.normpath(data_path))
+    # Получаем текущее время
+    dt = datetime.datetime.now().strftime("%Y-%m-%d-%H%M")
+    # Собираем имя файла
+    filename = f"{output_type}__{base}__{dt}.{ext}"
+
+    return os.path.join(output_dir, filename)
 
 
 def check_data_folder_and_count_files(

@@ -1,30 +1,33 @@
 import os
+
 import argparse
 import glob
-import re
 import pickle
 from typing import Dict, Optional, Any
 
 import numpy as np
 import pandas as pd
-from catboost import CatBoostClassifier, Pool
-from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
-from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import StratifiedKFold, train_test_split
+
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
-from tqdm.notebook import tqdm
-
 
 from config import (
     SAMPLE_FRAC,
     PIPELINE_PATH,
     PROBA_TEST_PREDICT,
     CLASSES_TEST_PREDICT,
-    CLASSES_METRIC_LIST
+    CLASSES_METRIC_LIST,
+    PARAMS_LIST,
+    WEIGHTS_LIST,
+    INFERENCE_OUTPUT_DIR
 )
 
-from data_utils import load_dataset, split_dataset_by_target
+from data_utils import (
+    load_dataset,
+    split_dataset_by_target,
+    check_data_folder_and_count_files
+)
+
 from evaluate_metrics import (
     evaluate_auc_score,
     evaluate_accuracy_score
@@ -52,43 +55,43 @@ from feature_engineering import (
 )
 from classifier import CatBoostEnsembleClassifier
 
-from config import (
-    PARAMS_LIST,
-    WEIGHTS_LIST
-)
 """
 Настраиваем парсер аргументов для CLI-запуска.
 Это позволяет запускать скрипт с флагами:
-'--log-level info'   для вывода логов;
+--log-level info   для вывода логов;
 
-'--mode train'      для загрузки тренировочного датасета, 
+--mode train        для загрузки тренировочного датасета, 
                     разделения его на train/test,
                     обучения пайплайна train,
                     сохранения пайплайна.               
-'--mode test'       для загрузки тренировочного датасета, 
+--mode test         для загрузки тренировочного датасета, 
                     разделения его на train/test,
                     загрузки пайплайна,
                     получения и сохранения предикта.               
-'--mode inference'  для загрузки тренировочного датасета,
+--mode inference    для загрузки тренировочного датасета,
                     получения и сохранения предикта.
                     Это имитирует получение предикта 
                     на новых данных. За неимением других
                     данных тестируем на всём тренировочном
                     датасете.
                   
-'--output proba'    для режимов test/new_data 
+--output proba      для режимов test/new_data 
                     получение вероятностей классов.
-'--output predict'  для режимов test/new_data 
+--output predict    для режимов test/new_data 
                     жесткая классификация.
-'--data-path'       путь к данным для inference
+--data-path         путь к данным для inference
                     по умолчанию это путь
                     к тренировочному датасету.   
                     
-'--eval-metrics off' нет вывода метрик на тестовой выборке 
-'--eval-metrics auc' на тестовой выборки считается AUC SCORE
+--eval-metrics off нет вывода метрик на тестовой выборке 
+--eval-metrics auc на тестовой выборки считается AUC SCORE
                      и выводится в логи.
-'--eval-metrics acc' на тестовой выборки считается ACCURACY
-                     и выводится в логи.                                             
+--eval-metrics acc на тестовой выборки считается ACCURACY
+                     и выводится в логи.   
+                     
+--output-dir str   путь сохранения предиктов на новых данных,
+                   по умолчанию /../predictions/iference/
+                                                              
 Флаги можно ставить в любом порядке.
 Выбор флага --output... в --mode train не вызовет ошибки,
 сработает скрипт обучения. 
@@ -149,6 +152,21 @@ parser.add_argument(
         'Example: --output predict'
     )
 )
+# Переключатель оценки метрики (AUC/ACC)
+parser.add_argument(
+    "--eval-metrics",
+    type=str,
+    choices=["off", "auc", "acc"],
+    default="off",
+    help=(
+        'Evaluate metrics after train/test/inference:\n'
+        'auc  - calculate and print ROC AUC score\n'
+        'acc  - calculate and print Accuracy score\n'
+        'off - do not calculate metrics\n'
+        'Default: off\n'
+        'Example: --eval-metrics AUC'
+    )
+)
 # Путь к новым данным для режима inference
 # Реализован через os для кроссплатформенности
 parser.add_argument(
@@ -164,19 +182,14 @@ parser.add_argument(
         'Example (for inference): --data-path /path/to/new_data/'
     )
 )
-# Переключатель оценки метрики (AUC)
+# Путь сохранения предиктов новых данных
 parser.add_argument(
-    "--eval-metrics",
+    '--output-dir',
     type=str,
-    choices=["off", "auc", "acc"],
-    default="off",
+    default=INFERENCE_OUTPUT_DIR,
     help=(
-        'Evaluate metrics after train/test/inference:\n'
-        'auc  - calculate and print ROC AUC score\n'
-        'acc  - calculate and print Accuracy score\n'
-        'off - do not calculate metrics\n'
-        'Default: off\n'
-        'Example: --eval-metrics AUC'
+        'Path to folder where to save inference predictions.\n'
+        'Default: INFERENCE_OUTPUT_DIR (../predictions/inference/)'
     )
 )
 
@@ -393,6 +406,8 @@ def compute_and_log_metrics(
 
     return result
 
+
+
 def train_coordinator(path=PIPELINE_PATH):
     """
     Запускает процесс обучения основного пайплайна на обучающих данных.
@@ -484,6 +499,7 @@ def test_coordinator(
     Пробуем загрузить обученный пайплайн,
     если его нет то скрипт остановится с ошибкой.
     """
+    logger.info('Loading  the pipeline')
     pipe = load_pipeline()
 
     # Загружаем датасет
@@ -530,22 +546,31 @@ def test_coordinator(
     logger.info('Prediction and saving predicts completed successfully')
 
 def inference_coordinator():
-    # Дописать получение пути
-    print('ИМИТИРУЕМ ПРЕДИКТ НА НОВЫХ ДАННЫХ')
+
     logger.info('Inferring on new data')
 
-    # Получаем путь к файлам из парсера CLI ввода
-    # По умолчанию это путь к учебным данным в .pq формате
-    # Проверяем на наличие папки
-    data_path = args.data_path
-    if not os.path.isdir(data_path):
-        raise ValueError(f"Data path '{data_path}' is not a valid directory")
+    """
+    Пробуем загрузить обученный пайплайн,
+    если его нет то скрипт остановится с ошибкой.
+    """
+    logger.info('Loading  the pipeline')
+    pipe = load_pipeline()
 
-    # Определяем количество файлов в папке
-    # glob.glob найдёт все файлы в папке по маске *.pq'
-    files_count = len(glob.glob(os.path.join(data_path, '*.pq')))
-    if files_count == 0:
-        raise ValueError(f'No .pq files in {data_path}')
+    # Загружаем датасет
+    logger.info('Loading raw dataset')
+    data = load_dataset(verbose=verbose)
+    data = load_dataset(
+        path_to_dataset = args.data_path,
+    num_parts_total: int = NUM_PARTS_TOTAL,
+    save_to_path: str = TEMP_DATA_PATH,
+    verbose: bool = False,
+    columns: Optional[List[str]] = PRE_FEATURES
+    )
+
+    # Создаём имя файла предикта
+    path = make_infer_file_path(args.output, args.data_path, args.output_dir)
+
+
 
     logger.info(f'Handle data from "{data_path}" (found {files_count} .pq files)')
 
@@ -592,5 +617,3 @@ if __name__ == "__main__":
 
     # Удалить
     logger.info("Pipeline completed")
-    # Пример: просто вывод, чтобы скрипт завершился
-    print("Пайплайн завершён (тестовый запуск)")
