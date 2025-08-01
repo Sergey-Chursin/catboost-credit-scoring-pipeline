@@ -7,7 +7,11 @@ import numpy as np
 from config import (
     PROBA_TEST_PREDICT,
     CLASSES_TEST_PREDICT,
-    CLASSES_METRIC_LIST
+    CLASSES_METRIC_LIST,
+    TARGET_PATH,
+    TRAIN_SIZE,
+    SEED_SPLIT_DATASET,
+    STRATIFY_COL
 )
 
 from sklearn.metrics import (
@@ -176,7 +180,14 @@ def compute_and_log_metrics(
 
 
 if __name__ == "__main__":
-    y_dict = split_target_only()
+    y_dict = split_target_only(
+        path_to_target = TARGET_PATH,
+        train_size = TRAIN_SIZE,
+        random_state = SEED_SPLIT_DATASET,
+        stratify_col = STRATIFY_COL,
+        verbose = True
+    )
+
     y_true = y_dict['y_test']
 
     # Загружаем предикты вероятностей классов

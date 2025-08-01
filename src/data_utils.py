@@ -7,18 +7,6 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from config import (
-    # Для load_dataset
-    RAW_DATA_PATH,
-    TEMP_DATA_PATH,
-    PRE_FEATURES,
-    NUM_PARTS_TOTAL,
-    # Для split_dataset_by_target
-    TARGET_PATH,
-    TRAIN_SIZE,
-    SEED_SPLIT_DATASET,
-    STRATIFY_COL
-)
 """
 Создаём локальный логгер для этого модуля
 Он наследует настройки от root logger
@@ -31,11 +19,11 @@ logger = logging.getLogger(__name__)
 скачиваем только необходимые колонки
 """
 def load_parquet_chunks(
-        path_to_dataset: str = RAW_DATA_PATH,
+        path_to_dataset: str = None,
         start_from: int = 0,
         num_parts_to_read: int = 1,
-        columns: Optional[List[str]] = PRE_FEATURES,
-        verbose: bool = False
+        verbose: bool = False,
+        columns: Optional[List[str]] = None,
 ) -> pd.DataFrame:
     """
     Читает указанные партиции Parquet из директории,
@@ -45,8 +33,10 @@ def load_parquet_chunks(
         path_to_dataset : путь до директории с партициями
         start_from : номер партиции, с которой нужно начать чтение
         num_parts_to_read : количество партиций, которые требуется прочитать
-        columns : список колонок, которые нужно прочитать из партиции
         verbose : выводить ли дополнительную информацию
+        columns : список колонок, которые нужно прочитать из партиции
+             по умолчанию останутся все колонки
+
 
     Returns:
         pd.DataFrame
@@ -89,12 +79,12 @@ def load_parquet_chunks(
     return result
 
 def load_dataset(
-        path_to_dataset: str = RAW_DATA_PATH,
+        path_to_dataset: str = None,
         num_parts_to_preprocess_at_once: int = 1,
-        num_parts_total: int = NUM_PARTS_TOTAL,
-        save_to_path: str = TEMP_DATA_PATH,
+        num_parts_total: int = None,
+        save_to_path: str = None,
         verbose: bool = False,
-        columns: Optional[List[str]] = PRE_FEATURES
+        columns: Optional[List[str]] = None
 ) -> pd.DataFrame:
     """
     Загружает и подготавливает полный датасет из партиций Parquet,
@@ -110,6 +100,7 @@ def load_dataset(
             если None, сохранение не происходит
         verbose : логировать каждую обрабатываемую часть данных
         columns : список колонок, которые нужно оставить
+            по умолчанию останутся все колонки
 
     Returns:
         pd.DataFrame : датафрейм с объединёнными данными
@@ -151,13 +142,12 @@ def load_dataset(
         logger.info(f'Finished load_dataset (total rows: {len(result)})')
     return result
 
-
 def split_dataset_by_target(
         dataset: pd.DataFrame,
-        path_to_target: str = TARGET_PATH,
-        train_size: float = TRAIN_SIZE,
-        random_state: int = SEED_SPLIT_DATASET,
-        stratify_col: str = STRATIFY_COL,
+        path_to_target: str = None,
+        train_size: float = None,
+        random_state: int = None,
+        stratify_col: str = None,
         verbose: bool = False
 ) -> Dict[str, pd.DataFrame]:
     """
@@ -165,13 +155,13 @@ def split_dataset_by_target(
      стратифицированного разделения target.
 
     Args:
-        dataset: Основной DataFrame (из load_dataset)
-        path_to_target: Путь к target.csv (default из config)
-        train_size: Доля train (default из config)
-        random_state: Seed (default из config)
-        stratify_col: Колонка для стратификации (default из config)
-        verbose: Включить логи
-            Default False, приоритет у переданного из pipeline
+        dataset (pd.DataFrame): Входной датафрейм с признаками, без целевой переменной.
+        path_to_target (str, optional): Путь к CSV-файлу с целевой переменной.
+        train_size (float, optional): Доля обучающей выборки (от 0 до 1).
+        random_state (int, optional): Значение random seed для воспроизводимости сплита.
+        stratify_col (str, optional): Название колонки целевой переменной  для стратификации.
+        verbose (bool, optional): Если True, выводит информацию о сплите в лог.
+            По умолчанию False.
 
     Returns:
         Dict с 'X_train', 'y_train', 'X_test', 'y_test'
@@ -214,22 +204,22 @@ def split_dataset_by_target(
     return {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test}
 
 def split_target_only(
-        path_to_target: str = TARGET_PATH,
-        train_size: float = TRAIN_SIZE,
-        random_state: int = SEED_SPLIT_DATASET,
-        stratify_col: str = STRATIFY_COL,
+        path_to_target: str = None,
+        train_size: float = None,
+        random_state: int = None,
+        stratify_col: str = None,
         verbose: bool = True
 ):
     """
     Разделяет только таргет на train/test подвыборки.
 
     Args:
-        По умолчанию все аргументы берутся из config.
-        path_to_target: путь к target.csv
-        train_size: доля train
-        random_state: seed для воспроизводимости
-        stratify_col: по какой колонке стратифицироваться
-        verbose: Вывод print. По умолчанию True.
+        path_to_target (str, optional): Путь к CSV-файлу с целевой переменной.
+        train_size (float, optional): Доля train-выборки (от 0 до 1).
+        random_state (int, optional): Значение random seed для воспроизводимости разбиения.
+        stratify_col (str, optional): Название колонки для стратификации при сплите.
+        verbose (bool, optional): Если True, выводит сообщения (print) о прогрессе в консоль.
+            По умолчанию True.
     Returns:
         dict с pandas.Series: {'y_train', 'y_test'}
     """
@@ -296,7 +286,7 @@ def check_data_folder_and_count_files(
     Raises:
         ValueError: Если директория отсутствует или не содержит файлов по маске.
     """
-    logger.info("Starting check_data_folder_and_count_files")
+    logger.info(f"Starting check_data_folder_and_count_files : {data_path}")
     # Проверяем существование папки/файла, при отсутвии выводим предупреждение
     if not os.path.isdir(data_path):
         raise ValueError(f"Data path '{data_path}' is not a valid directory")
@@ -304,12 +294,14 @@ def check_data_folder_and_count_files(
     # Определяем количество файлов в папке
     # glob.glob найдёт все файлы в папке по маске pattern ('*.pq')
     # Если файлов с таким расширением нет, выводим предупреждение
-    files = glob.glob(os.path.join(data_path, pattern))
-    files_count = len(files)
+    file_paths = glob.glob(os.path.join(data_path, pattern))
+    files_count = len(file_paths)
     if files_count == 0:
         raise ValueError(f"No files matching '{pattern}' in {data_path}")
 
-    return files, files_count
+    logger.info(f'Count of files in data folder: {files_count}')
+
+    return file_paths, files_count
 
 
 # Добавим защитный блок main для тестов

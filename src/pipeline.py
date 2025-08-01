@@ -16,13 +16,22 @@ from config import (
     CLASSES_TEST_PREDICT,
     PARAMS_LIST,
     WEIGHTS_LIST,
-    INFERENCE_OUTPUT_DIR
+    INFERENCE_OUTPUT_DIR,
+    PRE_FEATURES,
+    RAW_DATA_PATH,
+    TEMP_DATA_PATH,
+    TARGET_PATH,
+    TRAIN_SIZE,
+    SEED_SPLIT_DATASET,
+    STRATIFY_COL
+
 )
 
 from data_utils import (
     load_dataset,
     split_dataset_by_target,
-    check_data_folder_and_count_files
+    check_data_folder_and_count_files,
+    make_infer_file_path
 )
 
 from evaluate_metrics import compute_and_log_metrics
@@ -309,11 +318,6 @@ def load_pipeline(path=PIPELINE_PATH):
         logger.error(msg)
         raise FileNotFoundError(msg)
 
-
-
-
-
-
 def train_coordinator(path=PIPELINE_PATH):
     """
     Запускает процесс обучения основного пайплайна на обучающих данных.
@@ -341,14 +345,30 @@ def train_coordinator(path=PIPELINE_PATH):
 
     logger.info('Train_coordinator started')
 
+    # Получаем количество файлов в папке с данными
+    files_count = check_data_folder_and_count_files(RAW_DATA_PATH)[1]
+
     # Загружаем датасет
     logger.info('Loading raw dataset')
-    raw_data = load_dataset(verbose=verbose)
+    raw_data = load_dataset(
+        path_to_dataset=RAW_DATA_PATH,
+        num_parts_total=files_count,
+        save_to_path=TEMP_DATA_PATH,
+        verbose=verbose,
+        columns=PRE_FEATURES
+    )
+
 
     # Загружаем таргет
     # Делим датасет и таргет на train/test
     logger.info('Splitting dataset into train and test sets')
-    train_test_dict = split_dataset_by_target(raw_data, verbose=verbose)
+    train_test_dict = split_dataset_by_target(
+        dataset=raw_data,
+        path_to_target=TARGET_PATH,
+        train_size=TRAIN_SIZE,
+        random_state=SEED_SPLIT_DATASET,
+        stratify_col=STRATIFY_COL,
+        verbose=verbose)
 
     # Обучаем пайплайн
     logger.info('Fitting the main pipeline')
@@ -362,6 +382,7 @@ def train_coordinator(path=PIPELINE_PATH):
     with open(path, 'wb') as file:
         pickle.dump(pipe, file)
 
+    # Считаем и логируем метрики
     compute_and_log_metrics(
         eval_metric=args.eval_metrics,
         pipe=pipe,
@@ -408,14 +429,30 @@ def test_coordinator(
     logger.info('Loading  the pipeline')
     pipe = load_pipeline()
 
+    # Получаем количество файлов в папке с данными
+    files_count = check_data_folder_and_count_files(RAW_DATA_PATH)[1]
+
     # Загружаем датасет
     logger.info('Loading raw dataset')
-    raw_data = load_dataset(verbose=verbose)
+    raw_data = load_dataset(
+        path_to_dataset=RAW_DATA_PATH,
+        num_parts_total=files_count,
+        save_to_path=TEMP_DATA_PATH,
+        verbose=verbose,
+        columns = PRE_FEATURES
+    )
 
     # Загружаем таргет
     # Делим датасет и таргет на train/test
     logger.info('Splitting dataset into train and test sets')
-    train_test_dict = split_dataset_by_target(raw_data, verbose=verbose)
+    train_test_dict = split_dataset_by_target(
+        dataset=raw_data,
+        path_to_target=TARGET_PATH,
+        train_size=TRAIN_SIZE,
+        random_state=SEED_SPLIT_DATASET,
+        stratify_col=STRATIFY_COL,
+        verbose=verbose)
+
 
     # Используем dispatch mapping для выбора жесткой или мягкой классификации
     # Создадим словарь режимов вывода
@@ -423,7 +460,7 @@ def test_coordinator(
         'proba': pipe.predict_proba,
         'predict': pipe.predict
     }
-    # Получаем значение из парсера и вызываем соответствующий метод
+    # Получаем значение из парсера и вызываем соответствующий метод предикта
     handler = output_handlers.get(args.output)
     logger.info(
         f'Getting {"probabilities" if args.output == "proba" else "classes"} for X_test data'
@@ -452,9 +489,7 @@ def test_coordinator(
     logger.info('Prediction and saving predicts completed successfully')
 
 def inference_coordinator():
-
     logger.info('Inferring on new data')
-
     """
     Пробуем загрузить обученный пайплайн,
     если его нет то скрипт остановится с ошибкой.
@@ -462,51 +497,49 @@ def inference_coordinator():
     logger.info('Loading  the pipeline')
     pipe = load_pipeline()
 
+    # Получаем количество файлов в папке с данными
+    files_count = check_data_folder_and_count_files(args.data_path)[1]
+
     # Загружаем датасет
-    logger.info('Loading raw dataset')
-    data = load_dataset(verbose=verbose)
+    logger.info(f'Loading dataset from : {args.data_path}')
     data = load_dataset(
         path_to_dataset = args.data_path,
-    num_parts_total: int = NUM_PARTS_TOTAL,
-    save_to_path: str = TEMP_DATA_PATH,
-    verbose: bool = False,
-    columns: Optional[List[str]] = PRE_FEATURES
+        num_parts_total= files_count,
+        verbose = verbose,
+        columns = PRE_FEATURES
     )
 
     # Создаём имя файла предикта
-    path = make_infer_file_path(args.output, args.data_path, args.output_dir)
+    predict_file_name = make_infer_file_path(
+        args.output,
+        args.data_path,
+        args.output_dir
+    )
 
-
-
-    logger.info(f'Handle data from "{data_path}" (found {files_count} .pq files)')
-
-    # Функция загрузки из импорта ПОМЕНЯТЬ
-    # data = prepare_transactions_dataset(
-    #     data_path,
-    #     num_parts_to_preprocess_at_once=1,
-    #     num_parts_total=files_count,
-    #     save_to_path=os.path.join('..', 'data', 'temp'),
-    #     columns=NEEDED_COLUMNS
-    # )
-    # Используем dispatch mapping
+    # Используем dispatch mapping для выбора жесткой или мягкой классификации
     # Создадим словарь режимов вывода
-    # output_handlers = {
-    #     'proba': model.predict_proba,
-    #     'predict': model.predict
-    # }
-    #
-    # # Получаем значчение из парсера и вызываем соответствующий метод
-    # handler = output_handlers.get(args.output)
-    # predictions = handler(X)
+    output_handlers = {
+        'proba': pipe.predict_proba,
+        'predict': pipe.predict
+    }
+    # Получаем значение из парсера и вызываем соответствующий метод предикта
+    handler = output_handlers.get(args.output)
+    logger.info(
+        f'Getting {"probabilities" if args.output == "proba" else "classes"} for {args.data_path}'
+    )
+    predictions = handler(data)
 
-    # Для теста/лога: тернарный оператор (как обсуждали ранее)
-    output_type = 'probabilities' if args.output == 'proba' else 'classes'
-    logger.info(f'Predicted {output_type} for samples')
+    # Сохранение предиктов
+    logger.info(
+        f'Saving {"probabilities" if args.output == "proba" else "classes"}\n'
+        f'to {predict_file_name}'
+    )
+    with open(
+            predict_file_name, 'wb'
+    ) as f:
+        pickle.dump(predictions, f)
 
-    # Сохранение результатов (пример: в файл)
-    # with open(f'predictions_{args.output}.pkl', 'wb') as f:
-    #     pickle.dump(predictions, f)
-
+    logger.info('Prediction and saving predicts completed successfully')
 
 if __name__ == "__main__":
     # Используем dispatch mapping
