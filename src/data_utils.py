@@ -1,6 +1,7 @@
 import os
+import glob
 import logging
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
@@ -17,9 +18,11 @@ from config import (
     SEED_SPLIT_DATASET,
     STRATIFY_COL
 )
-# Создаём локальный логгер для этого модуля
-# Он наследует настройки от root logger
-# импортирующего файла (pipeline.py)
+"""
+Создаём локальный логгер для этого модуля
+Он наследует настройки от root logger
+импортирующего файла (pipeline.py)
+"""
 logger = logging.getLogger(__name__)
 
 """
@@ -48,7 +51,7 @@ def load_parquet_chunks(
         pd.DataFrame
     """
     if verbose:
-        logger.info('Starting load_parquet_chunks')
+        logger.info('Starting load_parquet_chunks function')
 
     res = []
     dataset_paths = sorted(
@@ -111,7 +114,7 @@ def load_dataset(
         pd.DataFrame : датафрейм с объединёнными данными
     """
     if verbose:
-        logger.info('Starting load_dataset')
+        logger.info('Starting load_dataset function')
 
     preprocessed_frames = []
 
@@ -208,6 +211,41 @@ def split_dataset_by_target(
                     )
 
     return {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test}
+
+
+def check_data_folder_and_count_files(
+    data_path: str,
+    pattern: str = '*.pq'
+) -> Tuple[List[str], int]:
+    """
+    Проверяет существование папки data_path и наличие файлов по маске (например, *.pq).
+    Возвращает список путей к найденным файлам и их количество.
+
+    Args:
+        data_path (str): Путь к директории с исходными файлами.
+        pattern (str): Маска для поиска файлов (по умолчанию '*.pq').
+
+    Returns:
+        Tuple[List[str], int]: Список путей к найденным файлам и их количество.
+
+    Raises:
+        ValueError: Если директория отсутствует или не содержит файлов по маске.
+    """
+    logger.info("Starting check_data_folder_and_count_files")
+    # Проверяем существование папки/файла, при отсутвии выводим предупреждение
+    if not os.path.isdir(data_path):
+        raise ValueError(f"Data path '{data_path}' is not a valid directory")
+
+    # Определяем количество файлов в папке
+    # glob.glob найдёт все файлы в папке по маске pattern ('*.pq')
+    # Если файлов с таким расширением нет, выводим предупреждение
+    files = glob.glob(os.path.join(data_path, pattern))
+    files_count = len(files)
+    if files_count == 0:
+        raise ValueError(f"No files matching '{pattern}' in {data_path}")
+
+    return files, files_count
+
 
 # Добавим защитный блок main для тестов
 if __name__ == "__main__":
