@@ -1,27 +1,14 @@
 import logging
 
+from  typing import Optional, List, Dict
+
 import numpy as np
 import pandas as pd
+
 from catboost import CatBoostClassifier, Pool
+
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import StratifiedKFold
-
-from config import (
-    CAT_FEATURES,
-    N_SPLIT,
-    SEED,
-    SHUFFLE,
-    THRESHOLD,
-    PARAMS_LIST,
-    WEIGHTS_LIST
-)
-
-"""
-Создаём локальный логгер для этого модуля
-Он наследует настройки от root logger
-импортирующего файла (pipeline.py)
-"""
-logger = logging.getLogger(__name__)
 
 class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
     """
@@ -37,26 +24,6 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
         - Дополнительно обучается финальная модель на полном наборе данных.
         - Финальные предсказания вероятности классов это средневзвешенные
           предсказания моделей ансамбля через их веса (AUC или другая метрика)
-
-    Args:
-       params_list (list of dict, optional): Список параметров для каждой модели
-            (N фолдов + 1 финальная модель).
-            Приоритет: аргумент > globals() (PARAMS_LIST) > error (обязательный).
-        weights_list (list of float, optional): Веса для усреднения предсказаний.
-            (N фолдов + 1 финальная модель).
-            Приоритет: аргумент > globals() (WEIGHTS_LIST) > error (обязательный).
-        threshold (float, optional): Порог для классификации.
-            Приоритет: аргумент > globals() (THRESHOLD) > 0.5.
-        cat_features (list, optional): Список категориальных фичей.
-            Приоритет: аргумент > globals() (CAT_FEATURES) > [].
-        n_splits (int, optional): Количество фолдов.
-            Приоритет: аргумент > globals() (N_SPLIT) > 5.
-        seed (int, optional): Random seed.
-            Приоритет: аргумент > globals() (SEED) > 0.
-        shuffle (bool, optional): Перемешивание в KFolds.
-            Приоритет: аргумент > globals() (SHUFFLE) > True.
-        logger (logging.Logger, optional): Объект логгера.
-            Приоритет: аргумент  > None.
 
     Attributes:
         models_ (list): Список обученных моделей CatBoostClassifier
@@ -74,69 +41,43 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
             с порогом 0.5 по умолчанию или переданному.
     """
     def __init__(
-            self,
-            params_list=None,
-            weights_list=None,
-            threshold=None,
-            cat_features=None,
-            n_splits=None,
-            seed=None,
-            shuffle=None,
-            logger=None
+        self,
+        params_list: List[Dict],
+        weights_list: List[float],
+        threshold: float = 0.5,
+        cat_features: Optional[List[str]] = None,
+        n_splits: int = 5,
+        seed: int = 0,
+        shuffle: bool = True,
+        logger: Optional[logging.Logger] = None
     ):
-        if params_list is not None:
-            self.params_list = params_list
-        elif 'PARAMS_LIST' in globals():
-            self.params_list = PARAMS_LIST
-        else:
-            raise ValueError('params_list must be provided or defined in config (PARAMS_LIST)')
-
-        if weights_list is not None:
-            self.weights_list = weights_list
-        elif 'WEIGHTS_LIST' in globals():
-            self.weights_list = WEIGHTS_LIST
-        else:
-            raise ValueError('weights_list must be provided or defined in config (WEIGHTS_LIST)')
-
-        if threshold is not None:
-            self.threshold = threshold
-        elif 'THRESHOLD' in globals():
-            self.threshold = THRESHOLD
-        else:
-            self.threshold = 0.5
-
-        if cat_features is not None:
-            self.cat_features = cat_features
-        elif 'CAT_FEATURES' in globals():
-            self.cat_features = CAT_FEATURES
-        else:
-            self.cat_features = []
-
-        if n_splits is not None:
-            self.n_splits = n_splits
-        elif 'N_SPLIT' in globals():
-            self.n_splits = N_SPLIT
-        else:
-            self.n_splits = 5
-
-        if seed is not None:
-            self.seed = seed
-        elif 'SEED' in globals():
-            self.seed = SEED
-        else:
-            self.seed = 0
-
-        if shuffle is not None:
-            self.shuffle = shuffle
-        elif 'SHUFFLE' in globals():
-            self.shuffle = SHUFFLE
-        else:
-            self.shuffle = True
-
-        if logger is not None:
-            self.logger = logger
-        else:
-            self.logger = None
+        """
+        Args:
+            params_list (List[Dict]): Список словарей с гиперпараметрами для каждой модели ансамбля
+                (N фолдов + 1 финальная модель). REQUIRED.
+            weights_list (List[float]): Список весов для взвешивания предиктов
+                (один на каждую модель в ансамбле). REQUIRED.
+            threshold (float, optional): Порог отсечения для жёсткой классификации (predict).
+                По умолчанию 0.5.
+            cat_features (List[str], optional): Список названий категориальных фичей.
+                Если не передан, используется пустой список.
+            n_splits (int, optional): Количество фолдов для разбиения данных (StratifiedKFold).
+                По умолчанию 5.
+            seed (int, optional): Seed для воспроизводимости разбиения и моделей.
+                 По умолчанию 0.
+            shuffle (bool, optional): Флаг перемешивания данных при разбиении на фолды.
+                По умолчанию True.
+            logger (logging.Logger, optional): Объект логгера для сообщений внутренней работы классификатора.
+                По умолчанию None (без логирования).
+        """
+        self.params_list = params_list
+        self.weights_list = weights_list
+        self.threshold = threshold
+        self.cat_features = cat_features if cat_features is not None else []
+        self.n_splits = n_splits
+        self.seed = seed
+        self.shuffle = shuffle
+        self.logger = logger
 
     def fit(self, X, y):
         """
