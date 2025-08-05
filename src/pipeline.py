@@ -31,7 +31,8 @@ from config import (
     SHUFFLE,
     PROP_FEATURES_DICT,
     MEAN_FREQ_SOURCE_LIST,
-    DROP_LIST
+    DROP_LIST,
+    PARQUET_FILE_PATTERN
 )
 
 from data_utils import (
@@ -346,6 +347,7 @@ def train_coordinator(
         temp_data_path: str,
         pre_features: List[str],
         num_parts_to_preprocess_at_once: int,
+        pattern: str,
         target_path: str,
         train_size: float,
         seed_split_dataset: int,
@@ -374,6 +376,7 @@ def train_coordinator(
         temp_data_path (str): Путь к папке для временного сохранения обработанных чанков данных.
         pre_features (List[str]): Список колонок исходных признаков, которые нужно оставить при загрузке данных.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
+        pattern (str): Маска расширения для поиска файлов.
         target_path (str): Путь к CSV-файлу с целевой переменной (таргетом).
         train_size (float): Доля обучающей выборки (от 0 до 1).
         seed_split_dataset (int): Seed для разбиения на train/test (гарантирует воспроизводимость).
@@ -410,7 +413,7 @@ def train_coordinator(
     logger.info('Train mode started')
 
     # Получаем количество файлов в папке с данными
-    files_count = check_data_folder_and_count_files(raw_data_path)[1]
+    files_count = check_data_folder_and_count_files(raw_data_path, pattern)[1]
 
     # Загружаем датасет
     logger.info('Loading raw dataset')
@@ -473,6 +476,7 @@ def test_coordinator(
         temp_data_path: str,
         pre_features: List[str],
         num_parts_to_preprocess_at_once: int,
+        pattern: str,
         target_path: str,
         train_size: float,
         seed_split_dataset: int,
@@ -493,6 +497,7 @@ def test_coordinator(
         temp_data_path (str): Директория для временного хранения обработанных файлов.
         pre_features (List[str]): Список названий колонок, которые нужно загрузить из данных.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
+        pattern (str): Маска расширения для поиска файлов.
         target_path (str): Путь к CSV-файлу с целевой переменной.
         train_size (float): Доля обучающей выборки (от 0 до 1 при разбиении train/test).
         seed_split_dataset (int): Seed для разделения на train/test (гарантирует воспроизводимость).
@@ -531,7 +536,7 @@ def test_coordinator(
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
-    files_count = check_data_folder_and_count_files(raw_data_path)[1]
+    files_count = check_data_folder_and_count_files(raw_data_path, pattern)[1]
 
     # Загружаем датасет
     logger.info('Loading raw dataset')
@@ -619,6 +624,7 @@ def inference_coordinator(
         temp_data_path: str,
         pre_features: List[str],
         num_parts_to_preprocess_at_once: int,
+        pattern: str,
         output: str,
         output_dir: str,
         verbose: bool,
@@ -637,6 +643,7 @@ def inference_coordinator(
         temp_data_path (str): Директория для временного хранения обработанных частей данных.
         pre_features (List[str]): Список колонок, которые нужно оставить при загрузке нового датасета.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
+        pattern (str): Маска расширения для поиска файлов.
         output (str): Режим вывода предсказаний: 'proba' (вероятности классов) или 'predict' (метки классов).
         output_dir (str): Директория для сохранения итогового файла с предсказаниями.
         verbose (bool): Включить расширенный режим логирования и прогресс-бары.
@@ -658,7 +665,7 @@ def inference_coordinator(
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
-    files_count = check_data_folder_and_count_files(data_path)[1]
+    files_count = check_data_folder_and_count_files(data_path, pattern)[1]
 
     # Загружаем датасет
     logger.info(f'Loading dataset from : {data_path}')
@@ -746,6 +753,7 @@ if __name__ == "__main__":
             temp_data_path=TEMP_DATA_PATH,
             pre_features=PRE_FEATURES,
             num_parts_to_preprocess_at_once=1,
+            pattern=PARQUET_FILE_PATTERN,
             target_path=TARGET_PATH,
             train_size=TRAIN_SIZE,
             seed_split_dataset=SEED_SPLIT_DATASET,
@@ -771,14 +779,12 @@ if __name__ == "__main__":
             temp_data_path = TEMP_DATA_PATH,
             pre_features = PRE_FEATURES,
             num_parts_to_preprocess_at_once=1,
+            pattern=PARQUET_FILE_PATTERN,
             target_path = TARGET_PATH,
             train_size = TRAIN_SIZE,
             seed_split_dataset = SEED_SPLIT_DATASET,
             stratify_col = STRATIFY_COL,
             test_predict_path = TEST_PREDICT_PATH,
-            prop_features_dict=PROP_FEATURES_DICT,
-            mean_freq_source_list=MEAN_FREQ_SOURCE_LIST,
-            drop_list=DROP_LIST,
             output = args.output,
             eval_metrics = args.eval_metrics,
             verbose=verbose
@@ -789,9 +795,7 @@ if __name__ == "__main__":
             temp_data_path = TEMP_DATA_PATH,
             pre_features = PRE_FEATURES,
             num_parts_to_preprocess_at_once = 1,
-            prop_features_dict=PROP_FEATURES_DICT,
-            mean_freq_source_list=MEAN_FREQ_SOURCE_LIST,
-            drop_list=DROP_LIST,
+            pattern=PARQUET_FILE_PATTERN,
             output = args.output,
             output_dir = args.output_dir,
             verbose = verbose

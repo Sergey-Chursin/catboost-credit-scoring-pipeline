@@ -1,12 +1,15 @@
 import os
 import glob
-import logging
 import datetime
+import logging
+
 from typing import List, Optional, Dict, Tuple, Union
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+
 
 """
 Создаём локальный логгер для этого модуля
@@ -20,7 +23,7 @@ logger = logging.getLogger(__name__)
 скачиваем только необходимые колонки
 """
 def load_parquet_chunks(
-        path_to_dataset: str = None,
+        path_to_dataset: str,
         start_from: int = 0,
         num_parts_to_read: int = 1,
         verbose: bool = False,
@@ -42,8 +45,7 @@ def load_parquet_chunks(
     Returns:
         pd.DataFrame
     """
-    if verbose:
-        logger.info('Starting load_parquet_chunks function')
+    logger.info('Starting load_parquet_chunks function')
 
     res = []
     dataset_paths = sorted(
@@ -51,16 +53,14 @@ def load_parquet_chunks(
         for filename in os.listdir(path_to_dataset)
         if filename.startswith('train')
     )
-    if verbose:
-        logger.info(f'Found {len(dataset_paths)} dataset paths')
+    logger.info(f'Found {len(dataset_paths)} dataset paths')
 
     start_from = max(0, start_from)
     chunks = dataset_paths[start_from: start_from + num_parts_to_read]
 
-    if verbose:
-        logger.info('Reading chunks:')
-        for chunk in chunks:
-            logger.info(chunk)
+    logger.info('Reading chunks:')
+    for chunk in chunks:
+        logger.info(chunk)
 
     for chunk_path in tqdm(
             chunks,
@@ -68,22 +68,22 @@ def load_parquet_chunks(
             disable=not verbose, # бар отключится если verbose=False
             mininterval=5 # Обновление 1 раз в 5 сек
     ):
-        if verbose:
-            logger.info(f'Reading chunk: {chunk_path}')
+        logger.info(f'Reading chunk: {chunk_path}')
+
         chunk = pd.read_parquet(chunk_path, columns=columns)
         res.append(chunk)
 
     result = pd.concat(res).reset_index(drop=True)
-    if verbose:
-        logger.info(f'Finished load_parquet_chunks (read {len(result)} rows)')
+
+    logger.info(f'Finished load_parquet_chunks (read {len(result)} rows)')
 
     return result
 
 def load_dataset(
-        path_to_dataset: str = None,
-        num_parts_to_preprocess_at_once: int = 1,
-        num_parts_total: int = None,
+        path_to_dataset: str,
+        num_parts_total: int,
         save_to_path: str = None,
+        num_parts_to_preprocess_at_once: int = 1,
         verbose: bool = False,
         columns: Optional[List[str]] = None
 ) -> pd.DataFrame:
@@ -94,11 +94,11 @@ def load_dataset(
 
     Args:
         path_to_dataset : путь до датасета с партициями
-        num_parts_to_preprocess_at_once : количество партиций,
-            которые будут одновременно держаться и обрабатываться в памяти
         num_parts_total : общее количество партиций, которые нужно обработать
         save_to_path : путь до папки для сохранения обработанных блоков в .parquet-формате;
             если None, сохранение не происходит
+        num_parts_to_preprocess_at_once : количество партиций,
+            которые будут одновременно держаться и обрабатываться в памяти
         verbose : логировать каждую обрабатываемую часть данных
         columns : список колонок, которые нужно оставить
             по умолчанию останутся все колонки
@@ -106,8 +106,7 @@ def load_dataset(
     Returns:
         pd.DataFrame : датафрейм с объединёнными данными
     """
-    if verbose:
-        logger.info('Starting load_dataset function')
+    logger.info('Starting load_dataset function')
 
     preprocessed_frames = []
 
@@ -116,8 +115,7 @@ def load_dataset(
                      desc="Loading entire data",
                      disable=not verbose
                      ):
-        if verbose:
-            logger.info(f'Processing step {step}')
+        logger.info(f'Processing step {step}')
 
         transactions_frame = load_parquet_chunks(
             path_to_dataset,
@@ -133,23 +131,23 @@ def load_dataset(
             block_as_str = str(step).zfill(3)
             save_file = os.path.join(save_to_path, f'processed_chunk_{block_as_str}.parquet')
             transactions_frame.to_parquet(save_file)
-            if verbose:
-                logger.info(f'Saved to "{save_file}"')
+
+            logger.info(f'Saved to "{save_file}"')
 
         preprocessed_frames.append(transactions_frame)
 
     result = pd.concat(preprocessed_frames)
-    if verbose:
-        logger.info(f'Finished load_dataset (total rows: {len(result)})')
+
+    logger.info(f'Finished load_dataset (total rows: {len(result)})')
+
     return result
 
 def split_dataset_by_target(
         dataset: pd.DataFrame,
-        path_to_target: str = None,
-        train_size: float = None,
-        random_state: int = None,
-        stratify_col: str = None,
-        verbose: bool = False
+        path_to_target: str,
+        train_size: float,
+        random_state: int,
+        stratify_col: str
 ) -> Dict[str, pd.DataFrame]:
     """
     Разделяет датасет на train/test на основе разделения
@@ -161,19 +159,15 @@ def split_dataset_by_target(
         train_size (float, optional): Доля обучающей выборки (от 0 до 1).
         random_state (int, optional): Значение random seed для воспроизводимости сплита.
         stratify_col (str, optional): Название колонки целевой переменной  для стратификации.
-        verbose (bool, optional): Если True, выводит информацию о сплите в лог.
-            По умолчанию False.
 
     Returns:
         Dict с 'X_train', 'y_train', 'X_test', 'y_test'
     """
-    if verbose:
-        logger.info('Starting split_dataset_by_target')
+    logger.info('Starting split_dataset_by_target')
 
     # Загружаем датасет с целевой переменной
     target = pd.read_csv(path_to_target)
-    if verbose:
-        logger.info(f'Loaded target from "{path_to_target}" (shape: {target.shape})')
+    logger.info(f'Loaded target from "{path_to_target}" (shape: {target.shape})')
 
     # Делим датасет с целевой переменной на train/test части
     y_train, y_test = train_test_split(
@@ -194,8 +188,7 @@ def split_dataset_by_target(
     y_train = y_train.reset_index(drop=True)[stratify_col]
     y_test = y_test.reset_index(drop=True)[stratify_col]
 
-    if verbose:
-        logger.info(f'Split completed:'
+    logger.info(f'Split completed:'
                     f' X_train {X_train.shape}'
                     f' X_test {X_test.shape}'
                     f' y_train {y_train.shape}'
@@ -205,11 +198,11 @@ def split_dataset_by_target(
     return {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test}
 
 def split_target_only(
-        path_to_target: str = None,
-        train_size: float = None,
-        random_state: int = None,
-        stratify_col: str = None,
-        verbose: bool = True
+        path_to_target: str,
+        train_size: float,
+        random_state: int,
+        stratify_col: str,
+        verbose: bool = False
 ):
     """
     Разделяет только таргет на train/test подвыборки.
@@ -246,15 +239,27 @@ def split_target_only(
         'y_test': y_test[stratify_col]
     }
 
-def make_infer_file_path(
+def make_file_path(
         output_type: str,
         data_path: str,
         output_dir: str,
-        ext="csv"
+        ext: str
 ) -> str:
     """
-    Генерирует путь к файлу для сохранения предикта на новых данных.
-    Формат имени: <output_type>__<имя_папки_источника>__<текущая_дата_и_время>.<ext>
+    Формирует путь для сохранения файла предсказаний с уникальным именем, включающим тип вывода,
+    имя исходной папки с данными и текущую дату/время.
+
+    Имя файла строится по шаблону:
+    <output_type>__<имя_папки_источника>__<текущая_дата_и_время>.<ext>
+
+    Args:
+        output_type (str): Тип вывода (например, 'proba' или 'predict').
+        data_path (str): Путь к исходной папке с данными, используется для извлечения имени.
+        output_dir (str): Папка, в которую будет сохранён итоговый файл.
+        ext (str): Расширение итогового файла (например, 'csv').
+
+    Returns:
+        str: Полный путь к файлу с предсказаниями.
     """
     # os.path.normpath(path) -приводит путь к "нормализованному" виду
     # (убирает лишние слэши, точки, двойные слэши и пр.)
@@ -262,7 +267,7 @@ def make_infer_file_path(
     # файла или последней папки.
     base = os.path.basename(os.path.normpath(data_path))
     # Получаем текущее время
-    dt = datetime.datetime.now().strftime("%Y-%m-%d-%H%M")
+    dt = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")
     # Собираем имя файла
     filename = f"{output_type}__{base}__{dt}.{ext}"
 
@@ -271,7 +276,7 @@ def make_infer_file_path(
 
 def check_data_folder_and_count_files(
     data_path: str,
-    pattern: str = '*.pq'
+    pattern: str,
 ) -> Tuple[List[str], int]:
     """
     Проверяет существование папки data_path и наличие файлов по маске (например, *.pq).
@@ -279,7 +284,7 @@ def check_data_folder_and_count_files(
 
     Args:
         data_path (str): Путь к директории с исходными файлами.
-        pattern (str): Маска для поиска файлов (по умолчанию '*.pq').
+        pattern (str): Маска расширения для поиска файлов.
 
     Returns:
         Tuple[List[str], int]: Список путей к найденным файлам и их количество.
@@ -325,6 +330,7 @@ def save_predictions_with_id(
         predictions (np.ndarray): массив предиктов (classes или вероятности)
         output_path (str): итоговый путь к файлу .csv
     """
+    logger.info("Started save_predictions_with_id function")
     df_pred = pd.DataFrame()
     df_pred['id'] = ids
 
@@ -347,6 +353,8 @@ def save_predictions_with_id(
     else:
         raise ValueError(f"Unsupported output_type: {output_type}")
 
+
+    # df_pred.to_csv('preds.csv.gz', index=False)
     df_pred.to_csv(output_path, index=False)
 
 
