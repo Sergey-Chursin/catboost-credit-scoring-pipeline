@@ -1,11 +1,9 @@
 import logging
+from typing import Any, List, Dict
+
 import numpy as np
 import pandas as pd
-from config import (
-    PROP_FEATURES_DICT,
-    MEAN_FREQ_SOURCE_LIST,
-    DROP_LIST
-)
+
 """
 Создаём локальный логгер для этого модуля
 Он наследует настройки от root logger
@@ -73,7 +71,8 @@ def enc_paym_transcoding_pipeline(
 
 
 def definite_value_proportion_features_pipeline(
-        df: pd.DataFrame
+        df: pd.DataFrame,
+        features_dictionary: Dict[str, Any]
 ) -> pd.DataFrame:
     """
     Создаёт и добавляет в датафрейм новые частотные признаки
@@ -85,9 +84,15 @@ def definite_value_proportion_features_pipeline(
 
     Args:
         df : Исходный DataFrame, содержащий необходимые признаки и колонку 'rn_max'.
-
+        features_dictionary: Dict[str, Any] - Словарь где ключами являются названия колонок,
+            а значениями уникальные значения колонки которые требуется обработать.
     Returns:
         pandas.DataFrame : Копия исходного DataFrame с добавленными частотными признаками.
+
+    ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
+    (который ожидает функцию только с одним аргументом — DataFrame).
+     Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
+      чтобы зафиксировать дополнительные параметры заранее.
     """
     logger.info('FUNCTION definite_value_proportion_features_pipeline')
 
@@ -95,7 +100,6 @@ def definite_value_proportion_features_pipeline(
     Создадим словарь где для каждого признака перечислены значения,
     по которым считаем долю.
     """
-    features_dictionary = PROP_FEATURES_DICT
 
     # Итерируем по ключам
     for col in features_dictionary.keys():
@@ -151,7 +155,8 @@ def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
 
 
 def mean_value_frequency_feature_pipeline(
-        df: pd.DataFrame
+        df: pd.DataFrame,
+        columns_list: List[str]
 ) -> pd.DataFrame:
     """
     Cоздаёт новые агрегированные признаки,
@@ -161,17 +166,20 @@ def mean_value_frequency_feature_pipeline(
     с нормировкой на количество записей (rn_max) для каждого id.
 
     Args:
-        df :  Исходный DataFrame с признаками из columns_list.
+        df: (pd.DataFrame)  Исходный DataFrame с признаками из columns_list.
+        columns_list: (List[str]) Список столбцов, для которых считаем среднюю частоту значений
 
     Returns:
         pandas.DataFrame :  Копия DataFrame с добавленным новым столбцом {column}_mean_freq,
         содержащим нормированное агрегированное значение средней
         частоты значений column для каждого id.
+
+    ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
+    (который ожидает функцию только с одним аргументом — DataFrame).
+     Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
+      чтобы зафиксировать дополнительные параметры заранее.
     """
     logger.info('FUNCTION mean_value_frequency_feature_pipeline')
-
-    # Список столбцов, для которых считаем среднюю частоту значений
-    columns_list = MEAN_FREQ_SOURCE_LIST
 
     logger.info('New features')
 
@@ -384,7 +392,8 @@ def pre_since_opened_sum_mean_repeated_pipeline(
 
 
 def drop_columns_drop_duplicates_pipeline(
-        df: pd.DataFrame
+        df: pd.DataFrame,
+        columns_list: List[str]
 ) -> pd.DataFrame:
     """
     Удаляет исходные и временные признаки из DataFrame,
@@ -392,17 +401,21 @@ def drop_columns_drop_duplicates_pipeline(
     После удаления дубликатов столбец 'id' также удаляется.
 
     Args:
-        df : Исходный DataFrame.
+        df: (pd.DataFrame) Исходный DataFrame.
+        columns_list: List[str] Список удаляемых колонок.
 
     Returns:
         pd.DataFrame : Копия DataFrame без указанных столбцов и дубликатов по 'id'.
+
+    ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
+    (который ожидает функцию только с одним аргументом — DataFrame).
+     Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
+      чтобы зафиксировать дополнительные параметры заранее.
     """
 
     logger.info('FUNCTION drop_columns_drop_duplicates_pipeline')
-    # Список столбцов на удаление
-    columns = DROP_LIST
 
-    df = df.drop(columns, axis=1)
+    df = df.drop(columns_list, axis=1)
 
     """
     Удаляем дубликаты по столбцу 'id', оставляя первую запись

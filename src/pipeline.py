@@ -1,9 +1,10 @@
 import os
-
+import logging
 import argparse
-import glob
 import pickle
-from typing import Optional, List, Dict
+from typing import Any, Optional, List, Dict
+from functools import partial
+
 import numpy as np
 
 from sklearn.pipeline import Pipeline
@@ -22,7 +23,15 @@ from config import (
     TRAIN_SIZE,
     SEED_SPLIT_DATASET,
     STRATIFY_COL,
-    TEST_PREDICT_PATH
+    TEST_PREDICT_PATH,
+    THRESHOLD,
+    CAT_FEATURES,
+    N_SPLITS,
+    SEED,
+    SHUFFLE,
+    PROP_FEATURES_DICT,
+    MEAN_FREQ_SOURCE_LIST,
+    DROP_LIST
 )
 
 from data_utils import (
@@ -30,20 +39,18 @@ from data_utils import (
     split_dataset_by_target,
     check_data_folder_and_count_files,
     make_file_path,
-    save_predictions_with_id
+    save_predictions_with_id,
 )
 
 from evaluate_metrics import compute_and_log_metrics
 
-
-# Переключатель уровня логирования
 from log_config import setup_logging
 
 from preprocessing import (
     SampleMedianImputer,
     convert_all_to_numeric_pipeline,
     convert_all_to_int_pipeline,
-    drop_duplicates_pipeline
+    drop_duplicates_pipeline,
 )
 
 from feature_engineering import (
@@ -54,8 +61,9 @@ from feature_engineering import (
     mean_value_frequency_feature_pipeline,
     enc_paym_norm_group_sum_diff_pipeline,
     pre_since_opened_sum_mean_repeated_pipeline,
-    drop_columns_drop_duplicates_pipeline
+    drop_columns_drop_duplicates_pipeline,
 )
+
 from classifier import CatBoostEnsembleClassifier
 
 """
@@ -197,11 +205,20 @@ parser.add_argument(
     )
 )
 
-
+# Соберём пайплайн обработки данных и обучения ансамбля моделей
 def main_pipeline(
+        sample_frac: float,
         params_list: List[Dict],
         weights_list: List[float],
-        sample_frac: float
+        threshold: float,
+        cat_features: List[str],
+        n_splits: int,
+        seed: int,
+        shuffle: bool,
+        prop_features_dict: Dict[str, Any],
+        mean_freq_source_list: List[str],
+        drop_list: List[str],
+        logger: Optional[logging.Logger]
 ):
     """
     Создаёт и возвращает основной Pipeline для обучения и предсказания.
@@ -211,11 +228,16 @@ def main_pipeline(
     а также кастомный классификатор на основе ансамбля моделей CatBoost.
 
     Args:
-        params_list (List[Dict]): Список словарей с гиперпараметрами
-            для каждой модели CatBoost в ансамбле.
-        weights_list (List[float]): Список весов для агрегации предсказаний ансамбля.
-        sample_frac (float): Доля строк исходных данных, используемая для
-            вычисления медиан в SampleMedianImputer.
+        sample_frac (float): Доля строк исходных данных, используемая для вычисления медиан в SampleMedianImputer.
+        params_list (List[Dict]): Список словарей с гиперпараметрами для каждой модели CatBoost в ансамбле
+            (N фолдов + 1 финальная модель).
+        weights_list (List[float]): Список весов для взвешивания предсказаний ансамбля моделей.
+        threshold (float): Порог для жёсткой классификации (в CatBoostEnsembleClassifier, параметр predict).
+        cat_features (List[str]): Список названий категориальных фичей для CatBoost.
+        n_splits (int): Количество фолдов для ансамблирования моделей (StratifiedKFold).
+        seed (int): Seed для воспроизводимости разбиения и обучения моделей.
+        shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
+        logger (logging.Logger, optional): Логгер для сообщений. Если не передан — логирование отключено.
 
     Returns:
         sklearn.pipeline.Pipeline: Собранный pipeline, готовый для обучения (fit)
@@ -236,7 +258,18 @@ def main_pipeline(
         ('to_int', FunctionTransformer(convert_all_to_int_pipeline)),
         ('drop_duplicates', FunctionTransformer(drop_duplicates_pipeline))
     ])
-
+    
+    # Создадим объект  классификатора
+    classifier = CatBoostEnsembleClassifier(
+        params_list=params_list,
+        weights_list=weights_list,
+        threshold=threshold,
+        cat_features=cat_features,
+        n_splits=n_splits,
+        seed=seed,
+        shuffle=shuffle,
+        logger=logger
+    )
     # Создаём основной пайплайн
     main_pipe = Pipeline(
         [
@@ -254,7 +287,9 @@ def main_pipeline(
             ),
             (
                 'create_definite_value_proportion_features',
-                FunctionTransformer(definite_value_proportion_features_pipeline)
+                FunctionTransformer(
+                    partial(definite_value_proportion_features_pipeline, features_dictionary=prop_features_dict)
+                )
             ),
             (
                 'create_sum_prop_1_feature',
@@ -262,7 +297,9 @@ def main_pipeline(
             ),
             (
                 'create_mean_value_frequency_feature',
-                FunctionTransformer(mean_value_frequency_feature_pipeline)
+                FunctionTransformer(
+                    partial(mean_value_frequency_feature_pipeline, columns_list=mean_freq_source_list)
+                )
             ),
             (
                 'from_enc_paym_create_normalized_group_sum_features_then_diff_features',
@@ -274,20 +311,16 @@ def main_pipeline(
             ),
             (
                 'drop_temporary_and_source_columns_drop_duplicates',
-                FunctionTransformer(drop_columns_drop_duplicates_pipeline)
+                FunctionTransformer(
+                    partial(drop_columns_drop_duplicates_pipeline, columns_list=drop_list)
+                )
             ),
             (
-                'classifier',
-                CatBoostEnsembleClassifier(
-                    params_list=params_list,
-                    weights_list=weights_list,
-                    logger=logger
-                )
+                'classifier', classifier
             )
 
         ]
     )
-
     return main_pipe
 
 def load_pipeline(path: str):
@@ -317,33 +350,45 @@ def train_coordinator(
         train_size: float,
         seed_split_dataset: int,
         stratify_col: str,
-        params_list: List[Dict],
-        weights_list: List[str],
         sample_frac: float,
+        params_list: List[Dict],
+        weights_list: List[float],
+        threshold: float,
+        cat_features: List[str],
+        n_splits: int,
+        seed: int,
+        shuffle: bool,
         eval_metric: str,
-        verbose: bool
+        verbose: bool,
+        prop_features_dict: Dict[str, Any],
+        mean_freq_source_list: List[str],
+        drop_list: List[str],
+        logger: Optional[logging.Logger]
 ):
     """
     Запускает процесс обучения основного пайплайна на обучающих данных.
 
     Args:
-        Все параметры по умолчанию берутся из config.py.
-
-        pipeline_path (str): Путь для сохранения обученного пайплайна (модель + препроцессинг).
+        pipeline_path (str): Путь для сохранения обученного пайплайна.
         raw_data_path (str): Путь к исходной папке с "сырыми" parquet-данными для обучения.
-        temp_data_path (str): Директория для временного сохранения обработанных чанков данных.
-        pre_features (List[str]): Список колонок исходных признаков, которые нужно оставить
-            при загрузке данных.
+        temp_data_path (str): Путь к папке для временного сохранения обработанных чанков данных.
+        pre_features (List[str]): Список колонок исходных признаков, которые нужно оставить при загрузке данных.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
         target_path (str): Путь к CSV-файлу с целевой переменной (таргетом).
-        train_size (float): Доля обучающей выборки (значение от 0 до 1).
+        train_size (float): Доля обучающей выборки (от 0 до 1).
         seed_split_dataset (int): Seed для разбиения на train/test (гарантирует воспроизводимость).
         stratify_col (str): Название колонки, по которой производится стратифицированное разбиение train/test.
+        sample_frac (float): Доля строк исходных данных, используемая для вычисления медиан в SampleMedianImputer.
         params_list (List[Dict]): Список словарей с гиперпараметрами для каждой модели ансамбля CatBoost.
-        weights_list (List[str]): Список весов для взвешивания предсказаний ансамбля моделей.
-        sample_frac (float): Доля строк исходных данных, используемая для вычисления медиан в импутере.
+        weights_list (List[float]): Список весов для взвешивания предсказаний ансамбля моделей.
+        threshold (float): Порог для жёсткой классификации.
+        cat_features (List[str]): Список названий категориальных признаков.
+        n_splits (int): Количество фолдов для ансамблирования моделей.
+        seed (int): Seed для инициализации ансамблевого классификатора.
+        shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
         eval_metric (str): Режим расчёта метрик после обучения.
-        verbose (bool): Включить расширенный режим логирования и прогресс-бары.
+        verbose (bool): Включить прогресс-бары.
+        logger (logging.Logger, optional): Логгер для сообщений. Если не передан, логирование отключено.
 
     Последовательность действий:
         - Загружает основной исходный датасет с помощью функции load_dataset.
@@ -392,14 +437,22 @@ def train_coordinator(
     # Обучаем пайплайн
     logger.info('Fitting the main pipeline')
     pipe = main_pipeline(
+        sample_frac=sample_frac,
         params_list=params_list,
         weights_list=weights_list,
-        sample_frac=sample_frac
+        threshold=threshold,
+        cat_features=cat_features,
+        n_splits=n_splits,
+        seed=seed,
+        shuffle=shuffle,
+        prop_features_dict=prop_features_dict,
+        mean_freq_source_list=mean_freq_source_list,
+        drop_list=drop_list,
+        logger=logger
     ).fit(
         train_test_dict['X_train'],
         train_test_dict['y_train']
     )
-
     # Сохраним обученный пайплайн в файл
     logger.info(f'Saving trained pipeline to: {pipeline_path}')
     with open(pipeline_path, 'wb') as file:
@@ -427,7 +480,8 @@ def test_coordinator(
         test_predict_path: str,
         output: str,
         eval_metrics: str,
-        verbose: bool
+        verbose: bool,
+        logger: Optional[logging.Logger]
 ):
     """
     Выполняет тестирование обученного пайплайна на тестовой выборке.
@@ -447,7 +501,8 @@ def test_coordinator(
         output (str): Режим вывода предсказаний — 'proba' (вероятности классов)
             или 'predict' (жёсткая классификация).
         eval_metrics (str): Режим расчёта метрик на тестовой выборке ('off', 'auc', 'acc').
-        verbose (bool): Включить расширенный режим логирования и прогресс-бары.
+        verbose (bool): Включить  прогресс-бары.
+        logger (logging.Logger, optional): Логгер для сообщений. Если не передан, логирование отключено.
 
     Функция производит следующие этапы:
     - Загружает ранее обученный пайплайн (модель с этапами препроцессинга и feature engineering).
@@ -567,6 +622,7 @@ def inference_coordinator(
         output: str,
         output_dir: str,
         verbose: bool,
+        logger: Optional[logging.Logger]
 ):
 
     """
@@ -584,6 +640,7 @@ def inference_coordinator(
         output (str): Режим вывода предсказаний: 'proba' (вероятности классов) или 'predict' (метки классов).
         output_dir (str): Директория для сохранения итогового файла с предсказаниями.
         verbose (bool): Включить расширенный режим логирования и прогресс-бары.
+        logger (logging.Logger, optional): Логгер для сообщений. Если не передан, логирование отключено.
 
     Returns:
         None
@@ -677,7 +734,11 @@ if __name__ == "__main__":
 
     # Используем dispatch mapping
     # Создадим словарь режимов пайплайна.
-    # Координаторы будем вызывать через lambda и передавать параметры из конфига
+    # Координаторы будем вызывать через lambda и передавать параметры
+    # из конфига и парсера(один параметр вручную).
+    # ВАЖНО: именно здесь происходит первичная передача всех параметров в алгоритм;
+    # далее параметры прокидываются по функциям и классам явно,
+    # без повторного определения или извлечения из внешних источников.
     mode_handlers = {
         'train': lambda: train_coordinator(
             pipeline_path=PIPELINE_PATH,
@@ -689,12 +750,20 @@ if __name__ == "__main__":
             train_size=TRAIN_SIZE,
             seed_split_dataset=SEED_SPLIT_DATASET,
             stratify_col=STRATIFY_COL,
-            params_list = PARAMS_LIST,
-            weights_list = WEIGHTS_LIST,
-            sample_frac = SAMPLE_FRAC,
+            sample_frac=SAMPLE_FRAC,
+            params_list=PARAMS_LIST,
+            weights_list=WEIGHTS_LIST,
+            threshold=THRESHOLD,
+            cat_features=CAT_FEATURES,
+            n_splits=N_SPLITS,
+            seed=SEED,
+            shuffle=SHUFFLE,
             eval_metric=args.eval_metrics,
-            verbose=verbose
-
+            verbose=verbose,
+            prop_features_dict=PROP_FEATURES_DICT,
+            mean_freq_source_list=MEAN_FREQ_SOURCE_LIST,
+            drop_list=DROP_LIST,
+            logger=logger
         ),
         'test': lambda: test_coordinator(
             pipeline_path = PIPELINE_PATH,
@@ -707,6 +776,9 @@ if __name__ == "__main__":
             seed_split_dataset = SEED_SPLIT_DATASET,
             stratify_col = STRATIFY_COL,
             test_predict_path = TEST_PREDICT_PATH,
+            prop_features_dict=PROP_FEATURES_DICT,
+            mean_freq_source_list=MEAN_FREQ_SOURCE_LIST,
+            drop_list=DROP_LIST,
             output = args.output,
             eval_metrics = args.eval_metrics,
             verbose=verbose
@@ -717,6 +789,9 @@ if __name__ == "__main__":
             temp_data_path = TEMP_DATA_PATH,
             pre_features = PRE_FEATURES,
             num_parts_to_preprocess_at_once = 1,
+            prop_features_dict=PROP_FEATURES_DICT,
+            mean_freq_source_list=MEAN_FREQ_SOURCE_LIST,
+            drop_list=DROP_LIST,
             output = args.output,
             output_dir = args.output_dir,
             verbose = verbose
