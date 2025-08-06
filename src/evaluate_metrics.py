@@ -1,25 +1,21 @@
 import logging
-from typing import Sequence
-from typing import Dict, Optional, Any
-import pandas as pd
+import glob
+
+from typing import Any, Dict, List, Optional, Sequence
+
 import numpy as np
+import pandas as pd
+
+from sklearn.metrics import accuracy_score, roc_auc_score
 
 from config import (
-    PROBA_TEST_PREDICT,
-    CLASSES_TEST_PREDICT,
-    CLASSES_METRIC_LIST,
     TARGET_PATH,
     TRAIN_SIZE,
     SEED_SPLIT_DATASET,
-    STRATIFY_COL
+    STRATIFY_COL,
+    PROBA_TEST_PREDICT_PATTERN,
+    CLASSES_TEST_PREDICT_PATTERN
 )
-
-from sklearn.metrics import (
-    roc_auc_score,
-    accuracy_score
-)
-
-import pickle
 
 from data_utils import split_target_only
 
@@ -29,7 +25,7 @@ from data_utils import split_target_only
 импортирующего файла (pipeline.py)
 """
 logger = logging.getLogger(__name__)
-verbose = True
+
 
 def evaluate_auc_score(
         y_true: Sequence,
@@ -86,14 +82,28 @@ def evaluate_accuracy_score(
 
 def pred_and_metrics_compatible(
         y_pred: np.ndarray,
-        eval_metric: str
+        eval_metric: str,
+        classes_metric_list: List[str]
 ) -> bool:
     """
     Вспомогательная функция для compute_and_log_metrics.
-    Проверяет, соответствует ли тип y_pred требованиям конкретной метрики.
-    Возвращает True, если да (и можно использовать этот предикт для расчёта метрики), иначе False.
+    Проверяет, соответствует ли тип и размерность массива y_pred требованиям выбранной метрики.
+
+    Для метрик, требующих метки классов (например, accuracy, f1), проверяет,
+    что y_pred — это одномерный массив целых чисел.
+    Для метрик по вероятностям (например, auc, logloss), проверяет,
+    что y_pred либо двумерный массив float с формой (n, 2),
+    либо одномерный массив float.
+
+    Аргументы:
+        y_pred (np.ndarray): Массив предсказаний (метки классов или вероятности).
+        eval_metric (str): Имя метрики (например, 'acc', 'auc').
+        classes_metric_list (List[str]): Список метрик, требующих метки классов.
+
+    Возвращает:
+        bool: True, если y_pred совместим с указанной метрикой; False — иначе.
     """
-    if eval_metric in CLASSES_METRIC_LIST:
+    if eval_metric in classes_metric_list:
         # Метрики по меткам классов (accuracy, f1, ...): одномерный вектор целых чисел
         # isinstance(y_pred, np.ndarray) -проверка на массив
         # y_pred.ndim - проверка на рвзмерность
@@ -119,6 +129,7 @@ def compute_and_log_metrics(
     eval_metric: str,
     pipe: Any,
     train_test_dict: Dict[str, pd.DataFrame],
+    classes_metric_list: List[str],
     y_pred: Optional[np.ndarray] = None
 ) -> Optional[float]:
     """
@@ -129,6 +140,7 @@ def compute_and_log_metrics(
         pipe (Any): Обученный пайплайн.
         train_test_dict (dict): Словарь с тестовыми данными, должен содержать ключи
             'X_test' (pd.DataFrame) и 'y_test' (pd.Series или 1D np.array).
+        classes_metric_list (List[str]): Список метрик, требующих метки классов.
         y_pred (np.ndarray, optional): заранее полученный предикт,
              используется если совместим с eval_metric.
 
@@ -156,14 +168,18 @@ def compute_and_log_metrics(
     # Если подан y_pred нужного формата — используем его
     # Проверка размерности предикта есть в функциях модуля evaluate_metrics
     # verbose=False для отключения print() в функциях модуля evaluate_metrics
-    if y_pred is not None and pred_and_metrics_compatible(y_pred, eval_metric):
+    if y_pred is not None and pred_and_metrics_compatible(
+            y_pred,
+            eval_metric,
+            classes_metric_list
+    ):
         logger.info(f"Using provided y_pred for metric '{eval_metric}'")
         result = func(y_test, y_pred, verbose=False)
 
     else:
         # Иначе делаем свежий инференс подходящего типа через pipeline
         # Если для метрики нужны метки классов
-        if eval_metric in CLASSES_METRIC_LIST:
+        if eval_metric in classes_metric_list:
             logger.info(f"Calculating {eval_metric.upper()}: performing predict")
             # Делаем предикт
             y_pred = pipe.predict(X_test)
@@ -180,6 +196,17 @@ def compute_and_log_metrics(
 
 
 if __name__ == "__main__":
+    """
+    В блоке main можно посчитать метрики ROC AUC и Accuracy
+    на предиктах тестового датасета.
+    Из папки predictions автоматически выберутся файлы 
+    типа predict__raw__2025-08-05-17-37.csv / proba__raw__2025-08-05-17-28.csv,
+    созданые последними.
+    """
+    # Включаем вывод prints
+    verbose = True
+
+    # Получаем словарь с разделенным на train/test таргетом
     y_dict = split_target_only(
         path_to_target = TARGET_PATH,
         train_size = TRAIN_SIZE,
@@ -188,41 +215,60 @@ if __name__ == "__main__":
         verbose = True
     )
 
+    # Определяем истинные метки классов
     y_true = y_dict['y_test']
 
+    # Находим по маске файл с предиктами вероятностей на тестовом наборе,
+    # если файл еще не создан появится предупреждение
+    proba_files = glob.glob(PROBA_TEST_PREDICT_PATTERN)
+    if not proba_files:
+        raise FileNotFoundError(
+            f'No proba prediction files found for mask: {PROBA_TEST_PREDICT_PATTERN}'
+        )
+    # Выбираем первый файл
+    proba_test_predict = proba_files[0]
+
     # Загружаем предикты вероятностей классов
-    with open(PROBA_TEST_PREDICT, 'rb') as f:
-        probabilities = pickle.load(f)
+    proba_df = pd.read_csv(proba_test_predict)
+    probabilities = proba_df['proba_class_1'].values
 
     if verbose:
         print(
-            f'Loaded predicted probabilities from {PROBA_TEST_PREDICT}\n'
+            f'Loaded predicted probabilities from {proba_test_predict}\n'
             f' shape: {probabilities.shape}'
         )
 
+    # Находим по маске файл с предиктами вероятностей на тестовом наборе,
+    # если файл еще не создан появится предупреждение
+    classes_files = glob.glob(CLASSES_TEST_PREDICT_PATTERN)
+    if not classes_files:
+        raise FileNotFoundError(
+            f'No proba prediction files found for mask: {CLASSES_TEST_PREDICT_PATTERN}'
+        )
+    # Выбираем первый файл
+    classes_test_predict = classes_files[0]
+
     # Загружаем предикты классов
-    with open(CLASSES_TEST_PREDICT, 'rb') as f:
-        classes = pickle.load(f)
+    classes_df = pd.read_csv(classes_test_predict)
+    classes = classes_df['prediction'].values
 
     if verbose:
         print(
-            f'Loaded predicted classes from {CLASSES_TEST_PREDICT}\n'
+            f'Loaded predicted classes from {classes_test_predict}\n'
             f' shape: {classes.shape}'
         )
     # Проверяем совпадение длинн предикта и таргета -
     # выбрасываем предупреждение если нет.
     assert len(y_true) == len(classes), "Длины y_true и classes не совпадают!"
 
-    # получаем вероятности класса 1
-    y_score = probabilities[:, 1]
     # Проверяем совпадение длинн предикта и таргета -
     # выбрасываем предупреждение если нет.
-    assert len(y_true) == len(y_score), "Длины y_true и y_score не совпадают!"
+    assert len(y_true) == len(probabilities), "Длины y_true и y_score не совпадают!"
 
     # Вызываем функцию оценки AUC
     evaluate_auc_score(
             y_true,
-            y_score,
+            probabilities,
     )
 
     # Вызываем функцию оценки accuracy

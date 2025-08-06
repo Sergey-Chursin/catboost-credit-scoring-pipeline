@@ -32,7 +32,9 @@ from config import (
     PROP_FEATURES_DICT,
     MEAN_FREQ_SOURCE_LIST,
     DROP_LIST,
-    PARQUET_FILE_PATTERN
+    PARQUET_FILE_PATTERN,
+    CLASSES_METRIC_LIST,
+    PREDICT_FILE_EXTENSION
 )
 
 from data_utils import (
@@ -260,7 +262,7 @@ def main_pipeline(
         ('drop_duplicates', FunctionTransformer(drop_duplicates_pipeline))
     ])
     
-    # Создадим объект  классификатора
+    # Создадим объект классификатора
     classifier = CatBoostEnsembleClassifier(
         params_list=params_list,
         weights_list=weights_list,
@@ -365,6 +367,7 @@ def train_coordinator(
         prop_features_dict: Dict[str, Any],
         mean_freq_source_list: List[str],
         drop_list: List[str],
+        classes_metric_list: List[str],
         logger: Optional[logging.Logger]
 ):
     """
@@ -391,6 +394,8 @@ def train_coordinator(
         shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
         eval_metric (str): Режим расчёта метрик после обучения.
         verbose (bool): Включить прогресс-бары.
+        classes_metric_list: (List[str]) Список метрик требующих метки классов для расчета.
+            Используется в pred_and_metrics_compatible.
         logger (logging.Logger, optional): Логгер для сообщений. Если не передан, логирование отключено.
 
     Последовательность действий:
@@ -434,8 +439,8 @@ def train_coordinator(
         path_to_target=target_path,
         train_size=train_size,
         random_state=seed_split_dataset,
-        stratify_col=stratify_col,
-        verbose=verbose)
+        stratify_col=stratify_col
+    )
 
     # Обучаем пайплайн
     logger.info('Fitting the main pipeline')
@@ -465,7 +470,8 @@ def train_coordinator(
     compute_and_log_metrics(
         eval_metric=eval_metric,
         pipe=pipe,
-        train_test_dict=train_test_dict
+        train_test_dict=train_test_dict,
+        classes_metric_list=classes_metric_list
     )
 
     logger.info('Train mode completed successfully')
@@ -482,8 +488,10 @@ def test_coordinator(
         seed_split_dataset: int,
         stratify_col: str,
         test_predict_path: str,
+        predict_file_extension: str,
         output: str,
         eval_metrics: str,
+        classes_metric_list: List[str],
         verbose: bool,
         logger: Optional[logging.Logger]
 ):
@@ -503,9 +511,12 @@ def test_coordinator(
         seed_split_dataset (int): Seed для разделения на train/test (гарантирует воспроизводимость).
         stratify_col (str): Имя колонки, по которой выполняется стратификация при разделении.
         test_predict_path (str): Директория/файл для сохранения предсказаний на тестовых данных.
+        predict_file_extension: (str) Тип расширения файлов предиктов для функции make_file_path.
         output (str): Режим вывода предсказаний — 'proba' (вероятности классов)
             или 'predict' (жёсткая классификация).
         eval_metrics (str): Режим расчёта метрик на тестовой выборке ('off', 'auc', 'acc').
+        classes_metric_list: (List[str]) Список метрик требующих метки классов для расчета.
+            Используется в pred_and_metrics_compatible.
         verbose (bool): Включить  прогресс-бары.
         logger (logging.Logger, optional): Логгер для сообщений. Если не передан, логирование отключено.
 
@@ -546,7 +557,7 @@ def test_coordinator(
         num_parts_total=files_count,
         save_to_path=temp_data_path,
         verbose=verbose,
-        columns = pre_features
+        columns=pre_features
     )
 
     # Загружаем таргет
@@ -557,8 +568,8 @@ def test_coordinator(
         path_to_target=target_path,
         train_size=train_size,
         random_state=seed_split_dataset,
-        stratify_col=stratify_col,
-        verbose=verbose)
+        stratify_col=stratify_col
+    )
 
     # Используем dispatch mapping для выбора жесткой или мягкой классификации
     # Создадим словарь режимов вывода
@@ -582,6 +593,7 @@ def test_coordinator(
         eval_metric=eval_metrics,
         pipe=pipe,
         train_test_dict=train_test_dict,
+        classes_metric_list=classes_metric_list,
         y_pred=predictions
     )
 
@@ -597,7 +609,7 @@ def test_coordinator(
         output_type=output,
         data_path=raw_data_path,
         output_dir=test_predict_path,
-        ext="csv"
+        ext=predict_file_extension
     )
 
     logger.info(
@@ -625,6 +637,7 @@ def inference_coordinator(
         pre_features: List[str],
         num_parts_to_preprocess_at_once: int,
         pattern: str,
+        predict_file_extension: str,
         output: str,
         output_dir: str,
         verbose: bool,
@@ -644,6 +657,7 @@ def inference_coordinator(
         pre_features (List[str]): Список колонок, которые нужно оставить при загрузке нового датасета.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
         pattern (str): Маска расширения для поиска файлов.
+        predict_file_extension: (str) Тип расширения файлов предиктов для функции make_file_path
         output (str): Режим вывода предсказаний: 'proba' (вероятности классов) или 'predict' (метки классов).
         output_dir (str): Директория для сохранения итогового файла с предсказаниями.
         verbose (bool): Включить расширенный режим логирования и прогресс-бары.
@@ -670,12 +684,12 @@ def inference_coordinator(
     # Загружаем датасет
     logger.info(f'Loading dataset from : {data_path}')
     data = load_dataset(
-        path_to_dataset = data_path,
-        num_parts_to_preprocess_at_once = num_parts_to_preprocess_at_once,
-        num_parts_total = files_count,
-        save_to_path = temp_data_path,
-        verbose = verbose,
-        columns = pre_features
+        path_to_dataset=data_path,
+        num_parts_to_preprocess_at_once=num_parts_to_preprocess_at_once,
+        num_parts_total=files_count,
+        save_to_path=temp_data_path,
+        verbose=verbose,
+        columns=pre_features
     )
     # Используем dispatch mapping для выбора жесткой или мягкой классификации
     # Создадим словарь режимов вывода
@@ -705,7 +719,8 @@ def inference_coordinator(
     predict_file_name = make_file_path(
         output,
         data_path,
-        output_dir
+        output_dir,
+        ext=predict_file_extension
     )
     logger.info(
         f'Saving {"probabilities" if output == "proba" else "classes"}\n'
@@ -771,34 +786,40 @@ if __name__ == "__main__":
             prop_features_dict=PROP_FEATURES_DICT,
             mean_freq_source_list=MEAN_FREQ_SOURCE_LIST,
             drop_list=DROP_LIST,
+            classes_metric_list=CLASSES_METRIC_LIST,
             logger=logger
         ),
         'test': lambda: test_coordinator(
-            pipeline_path = PIPELINE_PATH,
-            raw_data_path = RAW_DATA_PATH,
-            temp_data_path = TEMP_DATA_PATH,
-            pre_features = PRE_FEATURES,
+            pipeline_path=PIPELINE_PATH,
+            raw_data_path=RAW_DATA_PATH,
+            temp_data_path=TEMP_DATA_PATH,
+            pre_features=PRE_FEATURES,
             num_parts_to_preprocess_at_once=1,
             pattern=PARQUET_FILE_PATTERN,
-            target_path = TARGET_PATH,
-            train_size = TRAIN_SIZE,
-            seed_split_dataset = SEED_SPLIT_DATASET,
-            stratify_col = STRATIFY_COL,
-            test_predict_path = TEST_PREDICT_PATH,
-            output = args.output,
-            eval_metrics = args.eval_metrics,
-            verbose=verbose
+            target_path=TARGET_PATH,
+            train_size=TRAIN_SIZE,
+            seed_split_dataset=SEED_SPLIT_DATASET,
+            stratify_col=STRATIFY_COL,
+            test_predict_path=TEST_PREDICT_PATH,
+            predict_file_extension=PREDICT_FILE_EXTENSION,
+            output=args.output,
+            eval_metrics=args.eval_metrics,
+            classes_metric_list=CLASSES_METRIC_LIST,
+            verbose=verbose,
+            logger=logger
         ),
         'inference': lambda: inference_coordinator(
-            pipeline_path = PIPELINE_PATH,
+            pipeline_path=PIPELINE_PATH,
             data_path=args.data_path,
-            temp_data_path = TEMP_DATA_PATH,
-            pre_features = PRE_FEATURES,
-            num_parts_to_preprocess_at_once = 1,
+            temp_data_path=TEMP_DATA_PATH,
+            pre_features=PRE_FEATURES,
+            num_parts_to_preprocess_at_once=1,
             pattern=PARQUET_FILE_PATTERN,
-            output = args.output,
-            output_dir = args.output_dir,
-            verbose = verbose
+            predict_file_extension=PREDICT_FILE_EXTENSION,
+            output=args.output,
+            output_dir=args.output_dir,
+            verbose=verbose,
+            logger=logger
         )
     }
     # Получим значение из парсера и
