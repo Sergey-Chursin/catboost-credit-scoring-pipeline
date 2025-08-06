@@ -1,11 +1,21 @@
 .DS_Store
 .ipynb_checkpoints
+
+# Папки автоматически создаваемые CatBoost
 notebooks/catboost_info/
-/pipeline/*.csv
-data/processed/
+src/catboost_info/
+
+# Промежуточные результаты обработки данных
+data/processed/*
+!data/processed/.gitkeep
 
 # технические файлы
-data/temp/
+data/temp/*
+!data/temp/.gitkeep
+
+# Предикты на новых данных
+predictions/inference/predictions/inference/*
+!predictions/inference/.gitkeep
 
 # Временные файлы Python
 __pycache__/
