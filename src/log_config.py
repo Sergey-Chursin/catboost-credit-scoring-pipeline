@@ -32,7 +32,7 @@ def setup_logging(level='OFF'):
             format='%(asctime)s - %(message)s'
         )
         # Выводим сообщение
-        logging.getLogger().info("Логирование включено (уровень INFO)")
+        logging.getLogger().info("INFO logging mode")
 
     else:
         # Снимаем все блокировки, позволяя логам работать

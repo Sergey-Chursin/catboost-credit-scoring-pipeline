@@ -82,7 +82,7 @@ def load_parquet_chunks(
 def load_dataset(
         path_to_dataset: str,
         num_parts_total: int,
-        save_to_path: str = None,
+        save_to_path: str,
         num_parts_to_preprocess_at_once: int = 1,
         verbose: bool = False,
         columns: Optional[List[str]] = None
@@ -353,8 +353,6 @@ def save_predictions_with_id(
     else:
         raise ValueError(f"Unsupported output_type: {output_type}")
 
-
-    # df_pred.to_csv('preds.csv.gz', index=False)
     df_pred.to_csv(output_path, index=False)
 
 

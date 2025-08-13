@@ -72,46 +72,56 @@ from classifier import CatBoostEnsembleClassifier
 """
 Настраиваем парсер аргументов для CLI-запуска.
 Это позволяет запускать скрипт с флагами:
---log-level info   для вывода логов;
 
+--help - Вывод help-сообщения
+
+-----------------
+--log-level info   для вывода логов;
+-----------------
 --mode train        для загрузки тренировочного датасета, 
                     разделения его на train/test,
-                    обучения пайплайна train,
-                    сохранения пайплайна.               
+                    обучения пайплайна,
+                    сохранения пайплайна.
+                                   
 --mode test         для загрузки тренировочного датасета, 
                     разделения его на train/test,
                     загрузки пайплайна,
-                    получения и сохранения предикта.               
---mode inference    для загрузки тренировочного датасета,
+                    получения и сохранения предикта. 
+                                  
+--mode inference    для загрузки  датасета из указанной папки
+                    (по умолчанию это учебные данные),
                     получения и сохранения предикта.
                     Это имитирует получение предикта 
-                    на новых данных. За неимением других
-                    данных тестируем на всём тренировочном
-                    датасете.
-                  
+                    на новых данных.
+------------------                 
 --output proba      для режимов test/inference 
-                    получение вероятностей классов.
---output predict    для режимов test/inference 
-                    жесткая классификация.
+                    получение предикта вероятностей классов.
                     
---data-path         путь к данным для inference
+--output predict    для режимов test/inference 
+                    получение предикта меток классов.
+------------------
+                  
+--data-path         путь к данным для inference,
                     по умолчанию это путь
                     к тренировочному датасету.   
-                    
---eval-metrics off нет вывода метрик на тестовой выборке 
+------------------                  
+--eval-metrics off нет вывода метрик на тестовой выборке. 
+
 --eval-metrics auc на тестовой выборки считается AUC SCORE
                      и выводится в логи.
+                     
 --eval-metrics acc на тестовой выборки считается ACCURACY
                      и выводится в логи.   
-                     
+------------------                    
 --output-dir str   путь сохранения предиктов на новых данных,
                    по умолчанию /../predictions/iference/
-                                                              
+------------------                                                                  
 Флаги можно ставить в любом порядке.
-Выбор флага --output... в --mode train не вызовет ошибки,
-сработает скрипт обучения. 
---help - Вывод help-сообщения
+Любое сочетание флагов  не вызовет ошибки,
+если действие включаемое флагом не поддерживается в данном режиме
+оно просто проигнорируется. 
 """
+
 # Создаём парсер c описанием для --help и
 # форматированием многострочных help
 parser = argparse.ArgumentParser(
@@ -183,7 +193,6 @@ parser.add_argument(
     )
 )
 # Путь к новым данным для режима inference
-# Реализован через os для кроссплатформенности
 parser.add_argument(
     '--data-path',
     type=str,
@@ -240,16 +249,16 @@ def main_pipeline(
         n_splits (int): Количество фолдов для ансамблирования моделей (StratifiedKFold).
         seed (int): Seed для воспроизводимости разбиения и обучения моделей.
         shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
+        prop_features_dict (Dict[str, Any]): Словарь, определяющий признаки и значения для создания
+            пропорциональных фичей в функции definite_value_proportion_features_pipeline.
+        mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в функции
+            mean_value_frequency_feature_pipeline.
+        drop_list (List[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
         logger (logging.Logger, optional): Логгер для сообщений. Если не передан — логирование отключено.
 
     Returns:
         sklearn.pipeline.Pipeline: Собранный pipeline, готовый для обучения (fit)
             или предсказания (predict/predict_proba).
-
-    Пример использования:
-        pipe = main_pipeline()
-        pipe.fit(X_train, y_train)
-        preds = pipe.predict(X_test)
     """
     # Создаём SampleMedianImputer для заполнения пустых значений медианами
     imputer = SampleMedianImputer(sample_frac=sample_frac)
@@ -328,8 +337,16 @@ def main_pipeline(
 
 def load_pipeline(path: str):
     """
-    Загружает обученный пайплайн с проверкой его
-    существования.
+    Загружает ранее сохранённый (обученный) пайплайн из файла.
+
+    Проверяет наличие файла по указанному пути, выполняет загрузку объекта средствами pickle,
+    при успешной загрузке выводит информационное сообщение в лог.
+
+    Args:
+        path (str): Путь к файлу с сохранённым пайплайном.
+
+    Returns:
+        object: Загруженный пайплайн (pipeline), восстановленный из файла.
     """
     try:
         with open(path, 'rb') as file:
@@ -394,6 +411,11 @@ def train_coordinator(
         shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
         eval_metric (str): Режим расчёта метрик после обучения.
         verbose (bool): Включить прогресс-бары.
+        prop_features_dict (Dict[str, Any]): Словарь, определяющий признаки и значения для создания
+            пропорциональных фичей в функции definite_value_proportion_features_pipeline.
+        mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в функции
+            mean_value_frequency_feature_pipeline.
+        drop_list (List[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
         classes_metric_list: (List[str]) Список метрик требующих метки классов для расчета.
             Используется в pred_and_metrics_compatible.
         logger (logging.Logger, optional): Логгер для сообщений. Если не передан, логирование отключено.
@@ -406,6 +428,8 @@ def train_coordinator(
           на тренировочной части данных.
         - Сериализует обученный пайплайн в файл, путь к которому задаётся аргументом path.
         - Протоколирует все ключевые этапы в логах.
+        - При включении флгов --eval-metrics acc/auc обрабатывает тестовый набор данных и выводит в логи
+            выбранную метрику.
 
     Возвращаемое значение:
         - Ничего не возвращает (side-effect: сохранённый файл обученного пайплайна и логи выполнения).
@@ -461,12 +485,13 @@ def train_coordinator(
         train_test_dict['X_train'],
         train_test_dict['y_train']
     )
-    # Сохраним обученный пайплайн в файл
+    # Сохраним обученный пайплайн в pickle файл
     logger.info(f'Saving trained pipeline to: {pipeline_path}')
     with open(pipeline_path, 'wb') as file:
         pickle.dump(pipe, file)
 
     # Считаем и логируем метрики
+    # при переданном --eval-metrics acc/auc
     compute_and_log_metrics(
         eval_metric=eval_metric,
         pipe=pipe,
@@ -525,7 +550,9 @@ def test_coordinator(
     - Загружает исходный датасет и разделяет его на обучающую и тестовую части.
     - Получает предсказания (вероятности классов либо метки классов) на тестовой подвыборке
       в зависимости от режима ('proba' или 'predict'), заданного через аргумент args.output.
-    - Сохраняет полученные предсказания в соответствующий файл (test_proba.pkl или test_classes.pkl).
+    - Сохраняет полученные предсказания в соответствующий файл
+          типа predict__raw__*.csv или proba__raw__*.csv.
+    - При включении флгов --eval-metrics acc/auc  выводит в логи выбранную метрику.
     - Протоколирует каждый ключевой этап с помощью логгера.
 
     Исключения:
@@ -748,7 +775,7 @@ if __name__ == "__main__":
 
     """
     Синхронизация verbose с --log-level (True если 'info', False если 'off')
-    Для вывода логов и бара загрузки в функции prepare_transactions_dataset
+    lля вывода  баров загрузки в функции load_dataset
     """
     verbose = args.log_level == 'info'
 
@@ -827,5 +854,4 @@ if __name__ == "__main__":
     handler = mode_handlers.get(args.mode)
     handler()
 
-    # Удалить
-    logger.info("Pipeline completed")
+    logger.info("Pipeline completed successfully")

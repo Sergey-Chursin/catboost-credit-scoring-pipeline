@@ -2,8 +2,6 @@ import os
 
 # Модуль с константами, параметрами, путями, списками и словарями для пайплайна.
 
-# Пути к директориям (относительные от корня проекта)
-
 """
 Получаем абсолютный  путь до корня проекта.
 os.path.dirname(__file__) - даёт абсолютный путь до директории текущего файла (src)
@@ -12,13 +10,17 @@ os.path.abspath(...) - даёт абсолютный путь до root
 """
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
+# Паттерн расширения для функции check_data_folder_and_count_files
+PARQUET_FILE_PATTERN = '*.pq'
+
 # Константы для функции load_dataset
-# Путь до директории с исходными данными
+# Путь к директории с исходными данными
 RAW_DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'raw')
-# Путь до директории с техническими данными
+# Путь к директории с техническими данными
 TEMP_DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'temp')
-#  Количество *.pq (parquet) файлов для закачки функцией prepare_transactions_dataset
-NUM_PARTS_TOTAL = 12
+
+# Тип расширения для функции make_file_path
+PREDICT_FILE_EXTENSION  = 'csv'
 
 # Константы для функции split_dataset_by_target
 # Путь к таргет датасету
@@ -30,28 +32,31 @@ SEED_SPLIT_DATASET = 0
 # Колонка для стратификации
 STRATIFY_COL = 'flag'
 
+# Путь сохранения предиктов на новых данных в inference_coordinator
+INFERENCE_OUTPUT_DIR = os.path.join(PROJECT_ROOT, 'predictions', 'inference')
+
 # Доля датасета для расчета медиан в SampleMedianImputer
 SAMPLE_FRAC = 0.1
-
-# Константы классификатора
-# Random seed для воспроизводимости
-SEED = 0
-# Количество фолдов в CatBoostEnsembleClassifier
-N_SPLIT = 5
-# Стратификация разделения фолдов в CatBoostEnsembleClassifier
-SHUFFLE = True
-# Список категориалбных фичей в CatBoostEnsembleClassifier
-CAT_FEATURES = []
 
 # Путь сохранения обученного пайплайна
 PIPELINE_PATH = os.path.join(PROJECT_ROOT, 'models', 'main_pipeline.pkl')
 
+# Путь сохранения предиктов test_coordinator
+TEST_PREDICT_PATH = os.path.join(PROJECT_ROOT, 'predictions')
 
+# Паттерн пути до сохранённого предикта вероятностей на тестовом наборе
+PROBA_TEST_PREDICT_PATTERN = os.path.join(PROJECT_ROOT, 'predictions', 'proba__raw__*.csv')
+
+# Паттерн пути до сохранённого предикта меток классов на тестовом наборе
+CLASSES_TEST_PREDICT_PATTERN = os.path.join(PROJECT_ROOT, 'predictions', 'predict__raw__*.csv')
+
+# Список метрик требующих метки классов для расчета
+# Используется в pred_and_metrics_compatible
+CLASSES_METRIC_LIST = ['acc']
 
 """
 Словари и списки признаков для управления функциями 
-pipeline. Собираются в pipeline_config_builder.ipynb 
-и копируются сюда.
+pipeline. Собираются в ноутбуке pipeline_config_builder.ipynb и копируются сюда.
 """
 
 # Список признаков для загрузки из исходного датасета
@@ -140,7 +145,6 @@ PROP_FEATURES_DICT = {
     'is_zero_loans6090': [1],
     'is_zero_loans90': [1]
 }
-
 
 """
 Спиcок признаков исходного датасета
@@ -231,6 +235,17 @@ DROP_LIST = [
     'is_zero_loans6090_prop_1',
     'is_zero_loans90_prop_1'
 ]
+
+# Константы классификатора
+
+# Random seed для воспроизводимости
+SEED = 0
+# Количество фолдов в CatBoostEnsembleClassifier
+N_SPLITS = 5
+# Стратификация разделения фолдов в CatBoostEnsembleClassifier
+SHUFFLE = True
+# Список категориальных фичей в CatBoostEnsembleClassifier
+CAT_FEATURES = []
 
 """
 Список словарей гиперпараметров моделей ансамбля
@@ -369,7 +384,6 @@ PARAMS_LIST = [
 для финальной модели обученной на всех данных это средний 
 AUC моделей фолдов.
 """
-
 WEIGHTS_LIST = [
     0.7576036850511159,
     0.7554545982995526,
