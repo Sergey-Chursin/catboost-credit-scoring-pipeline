@@ -15,7 +15,7 @@ data/temp/*
 !data/temp/.gitkeep
 
 # Предикты на новых данных
-predictions/inference/predictions/inference/*
+predictions/inference/*
 !predictions/inference/.gitkeep
 
 # Временные файлы Python
