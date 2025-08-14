@@ -4,6 +4,7 @@
 # Папки автоматически создаваемые CatBoost
 notebooks/catboost_info/
 src/catboost_info/
+catboost_info/
 
 # Промежуточные результаты обработки данных
 data/processed/*
