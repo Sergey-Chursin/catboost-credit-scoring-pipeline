@@ -59,13 +59,17 @@ def enc_paym_transcoding_pipeline(
     logger.info('FUNCTION enc_paym_transcoding_pipeline ')
 
     # Список колонок для перекодировки
-    columns = [f'enc_paym_{i}' for i in range(25)]
+    columns = [col for col in df.columns if col.startswith('enc_paym_')]
 
-    for col in columns:
+    # for col in columns:
         # Проверяем, есть ли значение 4 в колонке
-        if 4 in df[col].unique():
-            # Заменяем значения согласно маппингу
-            df.loc[:, col] = df[col].replace({1: 0, 2: 1, 3: 2, 4: 3})
+        # if 4 in df[col].unique():
+        #     # Заменяем значения согласно маппингу
+        #     df.loc[:, col] = df[col].replace({1: 0, 2: 1, 3: 2, 4: 3})
+
+    # Заменяем значения в любом случае, а не только если есть 4
+    for col in columns:
+        df.loc[:, col] = df[col].replace({1: 0, 2: 1, 3: 2, 4: 3})
 
     return df
 
