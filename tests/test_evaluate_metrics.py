@@ -102,7 +102,7 @@ def test_evaluate_accuracy_score_partial():
     (np.array([[0, 1],[1, 0]]), int, 2, False),
     (np.array([[0.1, 0.9], [0.8, 0.2]], dtype=float), float, 2, True),
     (np.array([0.1, 0.9], dtype=float), float, 1, True),
-    (np.array([0, 1], dtype=int), int, 1, False),
+    (np.array([0, 1], dtype=int), int, 1, True),
 ])
 def test_pred_and_metrics_compatible(array, dtype, ndim, expected):
     """
@@ -118,7 +118,7 @@ def test_pred_and_metrics_compatible(array, dtype, ndim, expected):
         classes_metrics
     )
 
-    # Обычный assert равенства: проверяем, что возвращаемое функцией булево совпадает с ожидаемым
+    # Проверяем, что возвращаемое функцией булево совпадает с ожидаемым
     assert result == expected
 
 

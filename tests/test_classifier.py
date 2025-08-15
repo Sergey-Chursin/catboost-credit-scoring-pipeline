@@ -1,14 +1,3 @@
-import sys
-import os
-'''
-Добавляем в список путей поиска модулей папку src.
-Это нужно, чтобы импортировать модули из этой папки.
-__file__  путь к этому файлу.
-os.path.dirname(__file__)  папка, где лежит этот файл.
-os.path.join(..., '..', 'src')  идём на уровень выше от этого файла и попадаем в src.
-os.path.abspath(...)  переводим путь в абсолютный
-'''
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 import pandas as pd
 import numpy as np
 import pytest
