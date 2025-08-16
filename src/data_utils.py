@@ -9,8 +9,6 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-
-
 """
 Создаём локальный логгер для этого модуля
 Он наследует настройки от root logger

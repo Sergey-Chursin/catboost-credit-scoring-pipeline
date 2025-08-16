@@ -230,7 +230,7 @@ def main_pipeline(
         prop_features_dict: Dict[str, Any],
         mean_freq_source_list: List[str],
         drop_list: List[str],
-        logger: Optional[logging.Logger]
+        logger: Optional[logging.Logger] = None
 ):
     """
     Создаёт и возвращает основной Pipeline для обучения и предсказания.
@@ -254,7 +254,8 @@ def main_pipeline(
         mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в функции
             mean_value_frequency_feature_pipeline.
         drop_list (List[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
-        logger (logging.Logger, optional): Логгер для сообщений. Если не передан — логирование отключено.
+        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
+            Если None (по умолчанию), логирование этапов данной функции будет отключено.
 
     Returns:
         sklearn.pipeline.Pipeline: Собранный pipeline, готовый для обучения (fit)
@@ -335,7 +336,10 @@ def main_pipeline(
     )
     return main_pipe
 
-def load_pipeline(path: str):
+def load_pipeline(
+        path: str,
+        logger: Optional[logging.Logger] = None
+):
     """
     Загружает ранее сохранённый (обученный) пайплайн из файла.
 
@@ -344,6 +348,8 @@ def load_pipeline(path: str):
 
     Args:
         path (str): Путь к файлу с сохранённым пайплайном.
+        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
+            Если None (по умолчанию), логирование этапов данной функции будет отключено.
 
     Returns:
         object: Загруженный пайплайн (pipeline), восстановленный из файла.
@@ -351,16 +357,18 @@ def load_pipeline(path: str):
     try:
         with open(path, 'rb') as file:
             pipe = pickle.load(file)
-        logger.info(f'Pipeline loaded successfully from {path}')
+        if logger is not None:
+            logger.info(f'Pipeline loaded successfully from {path}')
         return pipe
 
     except FileNotFoundError:
         msg = (f'Pipeline file not found at {path}. '
                'Train the pipeline first (run with --mode train or without --mode flag).')
-        logger.error(msg)
+        if logger is not None:
+            logger.error(msg)
         raise FileNotFoundError(msg)
 
-def train_coordinator(
+def run_train_coordinator(
         pipeline_path: str,
         raw_data_path: str,
         temp_data_path: str,
@@ -385,7 +393,7 @@ def train_coordinator(
         mean_freq_source_list: List[str],
         drop_list: List[str],
         classes_metric_list: List[str],
-        logger: Optional[logging.Logger]
+        logger: Optional[logging.Logger] = None
 ):
     """
     Запускает процесс обучения основного пайплайна на обучающих данных.
@@ -418,7 +426,9 @@ def train_coordinator(
         drop_list (List[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
         classes_metric_list: (List[str]) Список метрик требующих метки классов для расчета.
             Используется в pred_and_metrics_compatible.
-        logger (logging.Logger, optional): Логгер для сообщений. Если не передан, логирование отключено.
+        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
+            Если None (по умолчанию), логирование этапов данной функции будет отключено.
+
 
     Последовательность действий:
         - Загружает основной исходный датасет с помощью функции load_dataset.
@@ -438,14 +448,15 @@ def train_coordinator(
         - Функция предназначена для запуска в режиме обучения
             (с флагом --mode train или без флага --mode вообще).
     """
-
-    logger.info('Train mode started')
+    if logger is not None:
+        logger.info('Train mode started')
 
     # Получаем количество файлов в папке с данными
     files_count = check_data_folder_and_count_files(raw_data_path, pattern)[1]
 
     # Загружаем датасет
-    logger.info('Loading raw dataset')
+    if logger is not None:
+        logger.info('Loading raw dataset')
     raw_data = load_dataset(
         path_to_dataset=raw_data_path,
         num_parts_to_preprocess_at_once=num_parts_to_preprocess_at_once,
@@ -457,7 +468,8 @@ def train_coordinator(
 
     # Загружаем таргет
     # Делим датасет и таргет на train/test
-    logger.info('Splitting dataset into train and test sets')
+    if logger is not None:
+        logger.info('Splitting dataset into train and test sets')
     train_test_dict = split_dataset_by_target(
         dataset=raw_data,
         path_to_target=target_path,
@@ -467,7 +479,8 @@ def train_coordinator(
     )
 
     # Обучаем пайплайн
-    logger.info('Fitting the main pipeline')
+    if logger is not None:
+        logger.info('Fitting the main pipeline')
     pipe = main_pipeline(
         sample_frac=sample_frac,
         params_list=params_list,
@@ -486,7 +499,8 @@ def train_coordinator(
         train_test_dict['y_train']
     )
     # Сохраним обученный пайплайн в pickle файл
-    logger.info(f'Saving trained pipeline to: {pipeline_path}')
+    if logger is not None:
+        logger.info(f'Saving trained pipeline to: {pipeline_path}')
     with open(pipeline_path, 'wb') as file:
         pickle.dump(pipe, file)
 
@@ -498,10 +512,10 @@ def train_coordinator(
         train_test_dict=train_test_dict,
         classes_metric_list=classes_metric_list
     )
+    if logger is not None:
+        logger.info('Train mode completed successfully')
 
-    logger.info('Train mode completed successfully')
-
-def test_coordinator(
+def run_test_coordinator(
         pipeline_path: str,
         raw_data_path: str,
         temp_data_path: str,
@@ -518,7 +532,7 @@ def test_coordinator(
         eval_metrics: str,
         classes_metric_list: List[str],
         verbose: bool,
-        logger: Optional[logging.Logger]
+        logger: Optional[logging.Logger] = None
 ):
     """
     Выполняет тестирование обученного пайплайна на тестовой выборке.
@@ -543,7 +557,9 @@ def test_coordinator(
         classes_metric_list: (List[str]) Список метрик требующих метки классов для расчета.
             Используется в pred_and_metrics_compatible.
         verbose (bool): Включить  прогресс-бары.
-        logger (logging.Logger, optional): Логгер для сообщений. Если не передан, логирование отключено.
+        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
+            Если None (по умолчанию), логирование этапов данной функции будет отключено.
+
 
     Функция производит следующие этапы:
     - Загружает ранее обученный пайплайн (модель с этапами препроцессинга и feature engineering).
@@ -565,19 +581,22 @@ def test_coordinator(
     Для запуска функции необходимо наличие ранее обученного пайплайна
     (обратите внимание на режим обучения --mode train).
     """
-    logger.info('Test_coordinator started')
+    if logger is not None:
+        logger.info('Test_coordinator started')
     """
     Пробуем загрузить обученный пайплайн,
     если его нет то скрипт остановится с ошибкой.
     """
-    logger.info('Loading  the pipeline')
+    if logger is not None:
+        logger.info('Loading  the pipeline')
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
     files_count = check_data_folder_and_count_files(raw_data_path, pattern)[1]
 
     # Загружаем датасет
-    logger.info('Loading raw dataset')
+    if logger is not None:
+        logger.info('Loading raw dataset')
     raw_data = load_dataset(
         path_to_dataset=raw_data_path,
         num_parts_to_preprocess_at_once=num_parts_to_preprocess_at_once,
@@ -589,7 +608,8 @@ def test_coordinator(
 
     # Загружаем таргет
     # Делим датасет и таргет на train/test
-    logger.info('Splitting dataset into train and test sets')
+    if logger is not None:
+        logger.info('Splitting dataset into train and test sets')
     train_test_dict = split_dataset_by_target(
         dataset=raw_data,
         path_to_target=target_path,
@@ -606,9 +626,10 @@ def test_coordinator(
     }
     # Получаем значение из парсера и вызываем соответствующий метод предикта
     handler = output_handlers.get(output)
-    logger.info(
-        f'Getting {"probabilities" if output == "proba" else "classes"} for X_test data'
-    )
+    if logger is not None:
+        logger.info(
+            f'Getting {"probabilities" if output == "proba" else "classes"} for X_test data'
+        )
     predictions = handler(
         train_test_dict['X_test']
     )
@@ -638,11 +659,11 @@ def test_coordinator(
         output_dir=test_predict_path,
         ext=predict_file_extension
     )
-
-    logger.info(
-        f'Saving {"probabilities" if output == "proba" else "classes"}\n'
-        f'to {predict_file_name}'
-    )
+    if logger is not None:
+        logger.info(
+            f'Saving {"probabilities" if output == "proba" else "classes"}\n'
+            f'to {predict_file_name}'
+        )
     # Получаем id set для сохранения с предиктом
     # Используем drop_duplicates так как X_test это датасет до агрегаций в пайплайне
     ids = train_test_dict['X_test']['id'].drop_duplicates().values
@@ -654,10 +675,10 @@ def test_coordinator(
         predictions=predictions,
         output_path=predict_file_name
     )
+    if logger is not None:
+        logger.info('Test mode completed successfully')
 
-    logger.info('Test mode completed successfully')
-
-def inference_coordinator(
+def run_inference_coordinator(
         pipeline_path: str,
         data_path: str,
         temp_data_path: str,
@@ -668,7 +689,7 @@ def inference_coordinator(
         output: str,
         output_dir: str,
         verbose: bool,
-        logger: Optional[logging.Logger]
+        logger: Optional[logging.Logger] = None
 ):
 
     """
@@ -688,7 +709,9 @@ def inference_coordinator(
         output (str): Режим вывода предсказаний: 'proba' (вероятности классов) или 'predict' (метки классов).
         output_dir (str): Директория для сохранения итогового файла с предсказаниями.
         verbose (bool): Включить расширенный режим логирования и прогресс-бары.
-        logger (logging.Logger, optional): Логгер для сообщений. Если не передан, логирование отключено.
+        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
+            Если None (по умолчанию), логирование этапов данной функции будет отключено.
+
 
     Returns:
         None
@@ -697,19 +720,22 @@ def inference_coordinator(
         - Сохраняет файл с предсказаниями и колонкой id в директорию output_dir.
         - Записывает этапы вычислений в лог.
     """
-    logger.info('Inference mode started')
+    if logger is not None:
+        logger.info('Inference mode started')
     """
     Пробуем загрузить обученный пайплайн,
     если его нет то скрипт остановится с ошибкой.
     """
-    logger.info('Loading  the pipeline')
+    if logger is not None:
+        logger.info('Loading  the pipeline')
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
     files_count = check_data_folder_and_count_files(data_path, pattern)[1]
 
     # Загружаем датасет
-    logger.info(f'Loading dataset from : {data_path}')
+    if logger is not None:
+        logger.info(f'Loading dataset from : {data_path}')
     data = load_dataset(
         path_to_dataset=data_path,
         num_parts_to_preprocess_at_once=num_parts_to_preprocess_at_once,
@@ -726,9 +752,10 @@ def inference_coordinator(
     }
     # Получаем значение из парсера и вызываем соответствующий метод предикта
     handler = output_handlers.get(output)
-    logger.info(
-        f'Getting {"probabilities" if output == "proba" else "classes"} for {data_path}'
-    )
+    if logger is not None:
+        logger.info(
+            f'Getting {"probabilities" if output == "proba" else "classes"} for {data_path}'
+        )
     predictions = handler(data)
 
     # БЛОК СОХРАНЕНИЯ ПРЕДИКТА
@@ -749,10 +776,11 @@ def inference_coordinator(
         output_dir,
         ext=predict_file_extension
     )
-    logger.info(
-        f'Saving {"probabilities" if output == "proba" else "classes"}\n'
-        f'to {predict_file_name}'
-    )
+    if logger is not None:
+        logger.info(
+            f'Saving {"probabilities" if output == "proba" else "classes"}\n'
+            f'to {predict_file_name}'
+        )
     # Сохраненяем предикты в .csv
     save_predictions_with_id(
         output_type=output,
@@ -760,8 +788,8 @@ def inference_coordinator(
         predictions=predictions,
         output_path=predict_file_name
     )
-
-    logger.info('Inference mode completed successfully')
+    if logger is not None:
+        logger.info('Inference mode completed successfully')
 
 if __name__ == "__main__":
     # Парсим аргументы из командной строки
@@ -778,8 +806,8 @@ if __name__ == "__main__":
     lля вывода  баров загрузки в функции load_dataset
     """
     verbose = args.log_level == 'info'
-
-    logger.info('Pipeline started')
+    if logger is not None:
+        logger.info('Pipeline started')
 
     # Используем dispatch mapping
     # Создадим словарь режимов пайплайна.
@@ -789,7 +817,7 @@ if __name__ == "__main__":
     # далее параметры прокидываются по функциям и классам явно,
     # без повторного определения или извлечения из внешних источников.
     mode_handlers = {
-        'train': lambda: train_coordinator(
+        'train': lambda: run_train_coordinator(
             pipeline_path=PIPELINE_PATH,
             raw_data_path=RAW_DATA_PATH,
             temp_data_path=TEMP_DATA_PATH,
@@ -816,7 +844,7 @@ if __name__ == "__main__":
             classes_metric_list=CLASSES_METRIC_LIST,
             logger=logger
         ),
-        'test': lambda: test_coordinator(
+        'test': lambda: run_test_coordinator(
             pipeline_path=PIPELINE_PATH,
             raw_data_path=RAW_DATA_PATH,
             temp_data_path=TEMP_DATA_PATH,
@@ -835,7 +863,7 @@ if __name__ == "__main__":
             verbose=verbose,
             logger=logger
         ),
-        'inference': lambda: inference_coordinator(
+        'inference': lambda: run_inference_coordinator(
             pipeline_path=PIPELINE_PATH,
             data_path=args.data_path,
             temp_data_path=TEMP_DATA_PATH,
@@ -853,5 +881,5 @@ if __name__ == "__main__":
     # запустим соответствующий режим пайплайна
     handler = mode_handlers.get(args.mode)
     handler()
-
-    logger.info("Pipeline completed successfully")
+    if logger is not None:
+        logger.info("Pipeline completed successfully")
