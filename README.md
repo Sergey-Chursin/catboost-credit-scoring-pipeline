@@ -68,17 +68,7 @@ The sixth model is trained on the full training data, with hyperparameters selec
 - Рекомендуется использовать Python 3.12 или выше,  
   так как эта версия содержит важные улучшения производительности и удобства,  
   а также уже получила широкую поддержку основных библиотек.
-- Для установки зависимостей используйте файл `requirements.txt`:
-```shell
-pip install -r requirements.txt
-```
 
-- Для работы с исходными файлами датасета в папке `train_data`  
-  используется [Git Large File Storage (Git LFS)](https://git-lfs.github.com/).  
-  Перед клонированием репозитория убедитесь, что Git LFS установлен и инициализирован:
-```shell
-git lfs install
-```
 ---
 
 ## Установка и запуск / Getting Started
@@ -88,32 +78,89 @@ git lfs install
 Вы можете клонировать репозиторий с помощью SSH:
 
 ```shell
-git clone git@github.com:Sergey-Chursin/catboost-credit-scoring-pipeline.git
+git clone git@github.com:Sergey-Chursin/catboost-credit-scoring-pipeline.git. 
 ```
-Или с помощью HTTPS:
+Или с помощью HTTPS:  
 ```shell
-git clone https://github.com/Sergey-Chursin/catboost-credit-scoring-pipeline.git
+git clone https://github.com/Sergey-Chursin/catboost-credit-scoring-pipeline.git. 
 ```
-Однако, для полноценной работы с проектом, включая загрузку больших файлов данных из папки `train_data`,  
-необходимо установить и инициализировать [Git Large File Storage (Git LFS)](https://git-lfs.github.com/):
+Однако, для полноценной работы с проектом, включая загрузку больших файлов данных из папки `train_data`,    
+необходимо установить и инициализировать [Git Large File Storage (Git LFS)](https://git-lfs.github.com/):  
 ```shell
 git lfs install
 ```
-Если Git LFS не установлен, файлы из `train_data` будут загружены как указатели и не будут доступны для работы.
+Если Git LFS не установлен, файлы из `train_data` будут загружены как указатели и не будут доступны для работы.  
 
-2. Создайте и активируйте виртуальное окружение: 
+2. Перейдите в корневую директорию проекта. 
+
 ```shell
-python -m venv venv
-source venv/bin/activate # Linux/Mac
-venv\Scripts\activate # Windows
+cd catboost-credit-scoring-pipeline
+```
+
+3.  Установите Miniconda или Anaconda (если не установлено). 
+
+Скачать: https://docs.conda.io/en/latest/miniconda.html. 
+
+4. Создайте и активируйте новое окружение. 
+
+Можно задать любое имя окружения (замените project_ml_env на удобное вам).  
+
+```shell
+conda env create -f environment.yml -n project_ml_env
+conda activate project_ml_env
 ``` 
 
-3. Установите зависимости:  
+4. Проверьте работу. 
+Запустите тесты  
 ```shell
-pip install -r requirements.txt
-```
-4. Запустите Jupyter Notebooks из папки `notebooks` и выполняйте ячейки по порядку.
+pytest
+``` 
+или с более подробным выводом  
+```shell
+pytest -s -v 
+``` 
+Либо запустите один из основных скриптов:  
+Тестовый режим с получением предикта на тестовой выборке с выводом метрики ROC AUC.  
+Репозиторий уже содержит обученный pipeline поэтому можно сразу запустить любой режим.  
+```shell
+python src/pipeline.py --log-level info --mode test --eval-metrics auc
+``` 
 
+Тренировочный режим
+```shell
+python src/pipeline.py --log-level info --mode train 
+``` 
+
+Инференс на новых данных (используются все обучающие данные)
+```shell
+python src/pipeline.py --log-level info --mode inference 
+``` 
+
+Подробное описание работы в различных режимах смотрите в комментариях  к pipeline.py.  
+
+5. Работа в Jupyter (опционально)  
+Если установили Conda, то следующая команда запустит сервер jupyter в браузере по умолчанию:  
+```shell
+jupyter notebook
+``` 
+Если установили Miniconda, то предварительно нужно установить пакет пакет Jupyter:  
+```shell
+conda install jupyter
+``` 
+
+Далее в открывшемся интерфейсе Jupyter найдите директорию проекта, перейдите в папку notebooks,  
+ выберите нужный ноутбук и откройте его.  
+Вы можете запускать ячейки ноутбука или просто просматривать содержимое.  
+
+6. Отключение или удаление окружения
+Выйти из окружения:
+```shell
+conda deactivate
+``` 
+Полностью удалить окружение:
+```shell
+conda env remove -n project_ml_env
+``` 
 ---
 
 ## Структура проекта / Project Structure
