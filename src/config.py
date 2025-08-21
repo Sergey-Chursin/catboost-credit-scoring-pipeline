@@ -11,7 +11,11 @@ os.path.abspath(...) - даёт абсолютный путь до root
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 # Паттерн расширения для функции check_data_folder_and_count_files
+
 PARQUET_FILE_PATTERN = '*.pq'
+
+# Расширение файлов для функции load_data_chunks
+FILE_EXTENSION = '.pq'
 
 # Константы для функции load_dataset
 # Путь к директории с исходными данными
@@ -58,6 +62,62 @@ CLASSES_METRIC_LIST = ['acc']
 Словари и списки признаков для управления функциями 
 pipeline. Собираются в ноутбуке pipeline_config_builder.ipynb и копируются сюда.
 """
+
+# Словарь для приведения колонок к нужным типам
+CAST_TYPE_MAP = {
+    'id': 'int32',
+    'rn': 'int8',
+    'pre_since_opened': 'int8',
+    'pre_since_confirmed': 'int8',
+    'pre_pterm': 'int8',
+    'pre_fterm': 'int8',
+    'pre_till_pclose': 'int8',
+    'pre_till_fclose': 'int8',
+    'pre_loans_credit_limit': 'int8',
+    'pre_loans_next_pay_summ': 'int8',
+    'pre_loans_outstanding': 'int8',
+    'pre_loans_max_overdue_sum': 'int8',
+    'pre_loans_credit_cost_rate': 'int8',
+    'pre_loans5': 'int8',
+    'pre_loans530': 'int8',
+    'is_zero_loans5': 'int8',
+    'is_zero_loans530': 'int8',
+    'pre_util': 'int8',
+    'pre_over2limit': 'int8',
+    'is_zero_over2limit': 'int8',
+    'enc_paym_0': 'int8',
+    'enc_paym_1': 'int8',
+    'enc_paym_2': 'int8',
+    'enc_paym_8': 'int8',
+    'enc_paym_9': 'int8',
+    'enc_paym_10': 'int8',
+    'enc_paym_24': 'int8',
+    'enc_loans_account_holder_type': 'int8',
+    'enc_loans_credit_status': 'int8',
+    'enc_loans_credit_type': 'int8',
+    'enc_loans_account_cur': 'int8',
+    'is_zero_loans3060': 'int8',
+    'is_zero_loans6090': 'int8',
+    'is_zero_loans90': 'int8',
+    'enc_paym_3': 'int8',
+    'enc_paym_4': 'int8',
+    'enc_paym_5': 'int8',
+    'enc_paym_6': 'int8',
+    'enc_paym_7': 'int8',
+    'enc_paym_11': 'int8',
+    'enc_paym_12': 'int8',
+    'enc_paym_13': 'int8',
+    'enc_paym_14': 'int8',
+    'enc_paym_15': 'int8',
+    'enc_paym_16': 'int8',
+    'enc_paym_17': 'int8',
+    'enc_paym_18': 'int8',
+    'enc_paym_19': 'int8',
+    'enc_paym_20': 'int8',
+    'enc_paym_21': 'int8',
+    'enc_paym_22': 'int8',
+    'enc_paym_23': 'int8',
+}
 
 # Список признаков для загрузки из исходного датасета
 PRE_FEATURES = [
