@@ -34,7 +34,9 @@ from config import (
     DROP_LIST,
     PARQUET_FILE_PATTERN,
     CLASSES_METRIC_LIST,
-    PREDICT_FILE_EXTENSION
+    PREDICT_FILE_EXTENSION,
+    CAST_TYPE_MAP,
+    FILE_EXTENSION
 )
 
 from data_utils import (
@@ -368,6 +370,7 @@ def load_pipeline(
             logger.error(msg)
         raise FileNotFoundError(msg)
 
+
 def run_train_coordinator(
         pipeline_path: str,
         raw_data_path: str,
@@ -393,7 +396,10 @@ def run_train_coordinator(
         mean_freq_source_list: List[str],
         drop_list: List[str],
         classes_metric_list: List[str],
-        logger: Optional[logging.Logger] = None
+        logger: Optional[logging.Logger] = None,
+        cast_type_map: Optional[dict] = None,
+        mask: Optional[str] = None,
+        file_ext: str = ".pq"
 ):
     """
     Запускает процесс обучения основного пайплайна на обучающих данных.
@@ -428,6 +434,14 @@ def run_train_coordinator(
             Используется в pred_and_metrics_compatible.
         logger (Optional[logging.Logger], default=None): Логгер для сообщений.
             Если None (по умолчанию), логирование этапов данной функции будет отключено.
+        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип},
+            где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
+            Если None, типы не приводятся.
+        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+            Если указана, выбираются только файлы, имя которых начинается с mask;
+            если None — выбираются все файлы.
+        file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
+            По умолчанию ".pq".
 
 
     Последовательность действий:
@@ -463,13 +477,17 @@ def run_train_coordinator(
         num_parts_total=files_count,
         save_to_path=temp_data_path,
         verbose=verbose,
-        columns=pre_features
+        columns=pre_features,
+        cast_type_map=cast_type_map,
+        mask=mask,
+        file_ext=file_ext
     )
 
     # Загружаем таргет
     # Делим датасет и таргет на train/test
     if logger is not None:
         logger.info('Splitting dataset into train and test sets')
+
     train_test_dict = split_dataset_by_target(
         dataset=raw_data,
         path_to_target=target_path,
@@ -515,6 +533,7 @@ def run_train_coordinator(
     if logger is not None:
         logger.info('Train mode completed successfully')
 
+
 def run_test_coordinator(
         pipeline_path: str,
         raw_data_path: str,
@@ -532,7 +551,11 @@ def run_test_coordinator(
         eval_metrics: str,
         classes_metric_list: List[str],
         verbose: bool,
-        logger: Optional[logging.Logger] = None
+        logger: Optional[logging.Logger] = None,
+        cast_type_map: Optional[dict] = None,
+        mask: Optional[str] = None,
+        file_ext: str = ".pq"
+
 ):
     """
     Выполняет тестирование обученного пайплайна на тестовой выборке.
@@ -559,6 +582,14 @@ def run_test_coordinator(
         verbose (bool): Включить  прогресс-бары.
         logger (Optional[logging.Logger], default=None): Логгер для сообщений.
             Если None (по умолчанию), логирование этапов данной функции будет отключено.
+        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип},
+            где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
+            Если None, типы не приводятся.
+        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+            Если указана, выбираются только файлы, имя которых начинается с mask;
+            если None — выбираются все файлы.
+        file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
+            По умолчанию ".pq".
 
 
     Функция производит следующие этапы:
@@ -597,15 +628,21 @@ def run_test_coordinator(
     # Загружаем датасет
     if logger is not None:
         logger.info('Loading raw dataset')
+
     raw_data = load_dataset(
         path_to_dataset=raw_data_path,
         num_parts_to_preprocess_at_once=num_parts_to_preprocess_at_once,
         num_parts_total=files_count,
         save_to_path=temp_data_path,
         verbose=verbose,
-        columns=pre_features
+        columns=pre_features,
+        cast_type_map=cast_type_map,
+        mask=mask,
+        file_ext=file_ext
     )
 
+
+    load_dataset
     # Загружаем таргет
     # Делим датасет и таргет на train/test
     if logger is not None:
@@ -689,7 +726,10 @@ def run_inference_coordinator(
         output: str,
         output_dir: str,
         verbose: bool,
-        logger: Optional[logging.Logger] = None
+        logger: Optional[logging.Logger] = None,
+        cast_type_map: Optional[dict] = None,
+        mask: Optional[str] = None,
+        file_ext: str = ".pq"
 ):
 
     """
@@ -711,7 +751,14 @@ def run_inference_coordinator(
         verbose (bool): Включить расширенный режим логирования и прогресс-бары.
         logger (Optional[logging.Logger], default=None): Логгер для сообщений.
             Если None (по умолчанию), логирование этапов данной функции будет отключено.
-
+        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип},
+            где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
+            Если None, типы не приводятся.
+        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+            Если указана, выбираются только файлы, имя которых начинается с mask;
+            если None — выбираются все файлы.
+        file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
+            По умолчанию ".pq".
 
     Returns:
         None
@@ -736,13 +783,17 @@ def run_inference_coordinator(
     # Загружаем датасет
     if logger is not None:
         logger.info(f'Loading dataset from : {data_path}')
+
     data = load_dataset(
         path_to_dataset=data_path,
         num_parts_to_preprocess_at_once=num_parts_to_preprocess_at_once,
         num_parts_total=files_count,
         save_to_path=temp_data_path,
         verbose=verbose,
-        columns=pre_features
+        columns=pre_features,
+        cast_type_map=cast_type_map,
+        mask=mask,
+        file_ext=file_ext
     )
     # Используем dispatch mapping для выбора жесткой или мягкой классификации
     # Создадим словарь режимов вывода
@@ -842,7 +893,9 @@ if __name__ == "__main__":
             mean_freq_source_list=MEAN_FREQ_SOURCE_LIST,
             drop_list=DROP_LIST,
             classes_metric_list=CLASSES_METRIC_LIST,
-            logger=logger
+            logger=logger,
+            cast_type_map=CAST_TYPE_MAP,
+            file_ext=FILE_EXTENSION
         ),
         'test': lambda: run_test_coordinator(
             pipeline_path=PIPELINE_PATH,
@@ -861,7 +914,9 @@ if __name__ == "__main__":
             eval_metrics=args.eval_metrics,
             classes_metric_list=CLASSES_METRIC_LIST,
             verbose=verbose,
-            logger=logger
+            logger=logger,
+            cast_type_map=CAST_TYPE_MAP,
+            file_ext=FILE_EXTENSION
         ),
         'inference': lambda: run_inference_coordinator(
             pipeline_path=PIPELINE_PATH,
@@ -874,7 +929,9 @@ if __name__ == "__main__":
             output=args.output,
             output_dir=args.output_dir,
             verbose=verbose,
-            logger=logger
+            logger=logger,
+            cast_type_map=CAST_TYPE_MAP,
+            file_ext=FILE_EXTENSION
         )
     }
     # Получим значение из парсера и

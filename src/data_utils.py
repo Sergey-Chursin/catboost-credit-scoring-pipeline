@@ -2,6 +2,7 @@ import os
 import glob
 import datetime
 import logging
+import gc
 
 from typing import List, Optional, Dict, Tuple, Union
 
@@ -9,6 +10,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+
 """
 Создаём локальный логгер для этого модуля
 Он наследует настройки от root logger
@@ -16,66 +18,116 @@ from tqdm import tqdm
 """
 logger = logging.getLogger(__name__)
 
+
+def cast_columns_by_map(
+        df: pd.DataFrame,
+        cast_type_map: dict
+) -> pd.DataFrame:
+    """
+    Меняет типы DataFrame-колонок в соответствии с заданным словарём.
+    Колонки, отсутствующие в cast_type_map или не найденные в df, не изменяются.
+
+    Args:
+        df (pd.DataFrame): Исходный DataFrame.
+        cast_type_map (dict): Словарь соответствий {имя_колонки('str'): тип_данных('str')}.
+
+    Returns:
+        pd.DataFrame: DataFrame с приведёнными типами указанных колонок.
+    """
+    for col, dtype in cast_type_map.items():
+        if col in df.columns:
+            try:
+                df[col] = df[col].astype(dtype)
+            except Exception as e:
+                logger.warning(f"Could not cast column '{col}' to {dtype}: {e}")
+    return df
+
+
 """
 Собираем исходный датасет из parquet файлов,  
 скачиваем только необходимые колонки
 """
-def load_parquet_chunks(
-        path_to_dataset: str,
-        start_from: int = 0,
-        num_parts_to_read: int = 1,
-        verbose: bool = False,
-        columns: Optional[List[str]] = None,
+def load_data_chunks(
+    path_to_dataset: str,
+    start_from: int = 0,
+    num_parts_to_read: int = 1,
+    verbose: bool = False,
+    columns: Optional[List[str]] = None,
+    cast_type_map: Optional[dict] = None,
+    mask: Optional[str] = None,
+    file_ext: str = ".pq"
 ) -> pd.DataFrame:
     """
-    Читает указанные партиции Parquet из директории,
-    преобразует их в pd.DataFrame и возвращает объединённый результат.
+    Читает указанные партиции Parquet из директории, объединяет их в DataFrame
+    и приводит типы указанных колонок.
 
     Args:
-        path_to_dataset : путь до директории с партициями
-        start_from : номер партиции, с которой нужно начать чтение
-        num_parts_to_read : количество партиций, которые требуется прочитать
-        verbose : выводить ли дополнительную информацию
-        columns : список колонок, которые нужно прочитать из партиции
-             по умолчанию останутся все колонки
-
+        path_to_dataset (str): Путь до директории с parquet-файлами.
+        start_from (int, optional): Номер партиции, с которой начать чтение (по умолчанию 0).
+        num_parts_to_read (int, optional): Количество партиций, которые требуется прочитать
+            (по умолчанию 1).
+        verbose (bool, optional): Если True, выводит выводит бары загрузки  файлов.
+        columns (Optional[List[str]], optional): Список колонок, которые нужно прочитать из партиций
+            (по умолчанию все).
+        cast_type_map (Optional[dict], optional): Словарь {имя_колонки: тип}, где тип — строка для приведения типа
+            (например, 'int8', 'float32', 'category'). Если None, типы не приводятся.
+        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+            Если указана, выбираются только файлы, имя которых начинается с mask;
+            если None — выбираются все файлы.
+        file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
+            По умолчанию ".pq".
 
     Returns:
-        pd.DataFrame
+        pd.DataFrame: Объединённый DataFrame с выбранными колонками и приведёнными типами.
     """
-    logger.info('Starting load_parquet_chunks function')
+    logger.info('Starting load_data_chunks function')
 
+    # Список для накопления прочитанных DataFrame
     res = []
+
+    # Собираем отсортированный список файлов с нужным расширением из папки:
+    #  Если mask не задан (пустая строка), берём все файлы, заканчивающиеся на file_ext (например, '.parquet').
+    # Если mask задан, берём только те файлы, которые начинаются с mask и заканчиваются на file_ext.
+    # Это позволяет гибко отбирать либо все партиции указанного расширения, либо только конкретные
+    # (например, 'train*.parquet', 'test*.pq') без риска схватить посторонние файлы.
     dataset_paths = sorted(
         os.path.join(path_to_dataset, filename)
         for filename in os.listdir(path_to_dataset)
-        if filename.startswith('train')
+        if filename.endswith(file_ext)
+        and (not mask or filename.startswith(mask))
     )
+
     logger.info(f'Found {len(dataset_paths)} dataset paths')
 
+    # Определяем диапазон файлов для чтения (батч)
     start_from = max(0, start_from)
-    chunks = dataset_paths[start_from: start_from + num_parts_to_read]
+    chunks = dataset_paths[start_from : start_from + num_parts_to_read]
 
     logger.info('Reading chunks:')
     for chunk in chunks:
         logger.info(chunk)
 
+    # Читаем parquet-файлы по указанному батчу и накапливаем DataFrame'ы
     for chunk_path in tqdm(
-            chunks,
-            desc="Reading dataset with pandas",
-            disable=not verbose, # бар отключится если verbose=False
-            mininterval=5 # Обновление 1 раз в 5 сек
+        chunks,
+        desc="Reading dataset with pandas",
+        disable=not verbose,  # tqdm-бар выключен, если verbose=False
+        mininterval=5         # обновление прогресса раз в 5 секунд
     ):
         logger.info(f'Reading chunk: {chunk_path}')
-
         chunk = pd.read_parquet(chunk_path, columns=columns)
         res.append(chunk)
 
+    # Объединяем все прочитанные DataFrame в один
     result = pd.concat(res).reset_index(drop=True)
 
-    logger.info(f'Finished load_parquet_chunks (read {len(result)} rows)')
+    # Приводим колонки датафрейма к нужному типу, если словарь типов задан
+    result = cast_columns_by_map(result, cast_type_map)
+
+    logger.info(f'Finished load_data_chunks (read {len(result)} rows)')
 
     return result
+
 
 def load_dataset(
         path_to_dataset: str,
@@ -83,9 +135,13 @@ def load_dataset(
         save_to_path: str,
         num_parts_to_preprocess_at_once: int = 1,
         verbose: bool = False,
-        columns: Optional[List[str]] = None
+        columns: Optional[List[str]] = None,
+        cast_type_map: Optional[dict] = None,
+        mask: Optional[str] = None,
+        file_ext: str = ".pq"
 ) -> pd.DataFrame:
     """
+    Обёртка для функции load_data_chunks.
     Загружает и подготавливает полный датасет из партиций Parquet,
      обрабатывает батчами,
      опционально сохраняет чанки и возвращает объединённый DataFrame.
@@ -100,31 +156,47 @@ def load_dataset(
         verbose : логировать каждую обрабатываемую часть данных
         columns : список колонок, которые нужно оставить
             по умолчанию останутся все колонки
+        cast_type_map : Словарь {имя_колонки: тип},
+            где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
+            Если None, типы не приводятся.
+        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+            Если указана, выбираются только файлы, имя которых начинается с mask;
+            если None — выбираются все файлы.
+        file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
+            По умолчанию ".pq".
 
     Returns:
         pd.DataFrame : датафрейм с объединёнными данными
     """
     logger.info('Starting load_dataset function')
 
-    preprocessed_frames = []
+    # Финальный датафрейм для объединения всех частей
+    result = None
 
-    # Добавлен disable=not verbose — бар отключится если verbose=False
+    # tqdm организует прогресс-бар по всему процессу загрузки
+    # disable=not verbose — бар отключится если verbose=False
     for step in tqdm(range(0, num_parts_total, num_parts_to_preprocess_at_once),
                      desc="Loading entire data",
                      disable=not verbose
                      ):
         logger.info(f'Processing step {step}')
 
-        transactions_frame = load_parquet_chunks(
+        # Загружаем одну или несколько партиций (батч)
+        # с помощью функции load_data_chunks
+        transactions_frame = load_data_chunks(
             path_to_dataset,
             start_from=step,
             num_parts_to_read=num_parts_to_preprocess_at_once,
             verbose=verbose,
-            columns=columns
+            columns=columns,
+            cast_type_map=cast_type_map,
+            mask=mask,
+            file_ext=file_ext
         )
 
-        # Записываем подготовленные данные в файл
-        # Меняем if-else на zfill - "заполняет" строку нулями слева до указанной длины
+        # Если указан путь для сохранения — сохраняем обработанный
+        # батч в отдельный parquet-файл.
+        # Мzfill - "заполняет" строку нулями слева до указанной длины
         if save_to_path:
             block_as_str = str(step).zfill(3)
             save_file = os.path.join(save_to_path, f'processed_chunk_{block_as_str}.parquet')
@@ -132,9 +204,16 @@ def load_dataset(
 
             logger.info(f'Saved to "{save_file}"')
 
-        preprocessed_frames.append(transactions_frame)
+        # Склеиваем датафреймы: если это первая часть — просто назначаем,
+        # иначе склеиваем с предыдущими.
+        if result is None:
+            result = transactions_frame
+        else:
+            result = pd.concat([result, transactions_frame], ignore_index=True)
 
-    result = pd.concat(preprocessed_frames)
+        # Освобождаем память за ненужный уже датафрейм батча
+        del transactions_frame
+        gc.collect()
 
     logger.info(f'Finished load_dataset (total rows: {len(result)})')
 
@@ -179,8 +258,8 @@ def split_dataset_by_target(
     test_id = y_test['id'].values
 
     # На основе наборов id делим исходный датасет на train/test части
-    X_train = dataset.set_index('id').loc[train_id].reset_index()
-    X_test = dataset.set_index('id').loc[test_id].reset_index()
+    X_train = dataset[dataset['id'].isin(train_id)].reset_index(drop=True)
+    X_test = dataset[dataset['id'].isin(test_id)].reset_index(drop=True)
 
     # Сбросим индексы для приведения к единому виду с X_train/X_test
     y_train = y_train.reset_index(drop=True)[stratify_col]
@@ -193,7 +272,12 @@ def split_dataset_by_target(
                     f' y_test {y_test.shape}'
                     )
 
-    return {'X_train': X_train, 'y_train': y_train, 'X_test': X_test, 'y_test': y_test}
+    return {
+        'X_train': X_train,
+        'y_train': y_train,
+        'X_test': X_test,
+        'y_test': y_test
+    }
 
 def split_target_only(
         path_to_target: str,
