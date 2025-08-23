@@ -1,4 +1,6 @@
 import logging
+from typing import Dict
+import gc
 
 import pandas as pd
 
@@ -30,7 +32,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
     preprocessing_pipe = Pipeline([
         ('to_numeric', FunctionTransformer(convert_all_to_numeric_pipeline)),
         ('imputer', imputer),
-        ('to_int', FunctionTransformer(convert_all_to_int_pipeline)),
+        ('to_int', FunctionTransformer(cast_columns_by_map_pipeline)),
         ('drop_duplicates', FunctionTransformer(drop_duplicates_pipeline)),
     ])
 """
@@ -57,37 +59,93 @@ def convert_all_to_numeric_pipeline(
         где все колонки приведены к числовому типу.
     """
     logger.info('FUNCTION convert_all_to_numeric_pipeline')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
 
-    # Копируем датасет чтобы не изменять оригинал.
-    df = df.copy()
+
     # errors='coerce' при невозможности преобразования заменит на NaN.
     return df.apply(lambda col: pd.to_numeric(col, errors='coerce'))
 
-
-def convert_all_to_int_pipeline(
-        df: pd.DataFrame
+def cast_columns_by_map_pipeline(
+        df: pd.DataFrame,
+        cast_type_map: Dict[str, str]
 ) -> pd.DataFrame:
     """
-    Преобразует все колонки DataFrame к целочисленному типу.
+    Приводит типы указанных колонок DataFrame к типам, заданным в словаре cast_type_map.
 
     Args:
-        df : Исходный DataFrame с числовыми значениями.
-
+        df : Исходный DataFrame.
+        cast_type_map : dict  Словарь соответствия {имя_колонки('str'): тип('str')}.
     Returns:
-        pd.DataFrame : DataFrame, где все колонки приведены к типу int.
+        pd.DataFrame : DataFrame, где указанные колонки приведены к нужному типу.
     """
-    logger.info('FUNCTION convert_all_to_int_pipeline')
+    logger.info('FUNCTION cast_columns_by_map_pipeline')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
 
+
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
 
     # Согласно логике preprocessing_pipe в датасете не должно остаться NaN,
     # но всё же введём проверку на всякий случай.
-
     if df.isnull().any().any():
         raise ValueError(
             "Found NaN values in DataFrame. All missing values must be imputed before converting to int."
         )
+    for col, dtype in cast_type_map.items():
+        if col in df.columns:
+            df[col] = df[col].astype(dtype)
+    return df
 
-    return df.astype(int)
+
+# def convert_all_to_int_pipeline(
+#         df: pd.DataFrame
+# ) -> pd.DataFrame:
+#     """
+#     Преобразует все колонки DataFrame к целочисленному типу.
+#
+#     Args:
+#         df : Исходный DataFrame с числовыми значениями.
+#
+#     Returns:
+#         pd.DataFrame : DataFrame, где все колонки приведены к типу int.
+#     """
+#     logger.info('FUNCTION convert_all_to_int_pipeline')
+#
+#
+#     # Согласно логике preprocessing_pipe в датасете не должно остаться NaN,
+#     # но всё же введём проверку на всякий случай.
+#
+#     if df.isnull().any().any():
+#         raise ValueError(
+#             "Found NaN values in DataFrame. All missing values must be imputed before converting to int."
+#         )
+#
+#     return df.astype(int)
+
+
+# def drop_duplicates_pipeline(
+#         df: pd.DataFrame
+# ) -> pd.DataFrame:
+#     """
+#     Удаляет дубликаты строк из DataFrame.
+#
+#     Args:
+#         df : Исходный DataFrame.
+#
+#     Returns:
+#         pd.DataFrame : DataFrame без дублирующихся строк.
+#     """
+#
+#     logger.info('FUNCTION drop_duplicates_pipeline')
+#
+#     return df.drop_duplicates()
 
 def drop_duplicates_pipeline(
         df: pd.DataFrame
@@ -100,11 +158,33 @@ def drop_duplicates_pipeline(
 
     Returns:
         pd.DataFrame : DataFrame без дублирующихся строк.
+            Если дубликаты найдены и удалены — новый объект.
+            Если дубликаты не найдены — возвращается исходный DataFrame без изменений.
     """
+    logger.info("FUNCTION drop_duplicates_pipeline")
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
 
-    logger.info('FUNCTION drop_duplicates_pipeline')
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
 
-    return df.drop_duplicates()
+
+    # Подсчитываем количество дублирующихся строк
+    n_dupes = df.duplicated().sum()
+    if n_dupes > 0:
+        # Если дубликаты есть — выводим предупреждение и удаляем их
+        logger.info(f"{n_dupes} duplicate records found! Data is not unique.")
+        return df.drop_duplicates(ignore_index=True)
+    else:
+        # Если дубликатов нет — уведомляем и возвращаем исходный DataFrame
+        logger.info("No duplicates found, no cleanup operation required.")
+        return df
 
 
 class SampleMedianImputer(BaseEstimator, TransformerMixin):

@@ -1,5 +1,6 @@
 import logging
 from typing import Any, List, Dict
+import gc
 
 import numpy as np
 import pandas as pd
@@ -27,6 +28,18 @@ def rn_max_feature_pipeline(
         pandas.DataFrame : Копия исходного DataFrame с добавленной колонкой 'rn_max'.
     """
     logger.info('FUNCTION rn_max_feature_pipeline')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
+
 
     """
     Для каждой строки определяем максимальное значение 'rn' среди всех строк с тем же 'id'
@@ -57,6 +70,18 @@ def enc_paym_transcoding_pipeline(
     pandas.DataFrame : Копия DataFrame с перекодированными признаками.
     """
     logger.info('FUNCTION enc_paym_transcoding_pipeline ')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
+
 
     # Список колонок для перекодировки
     columns = [col for col in df.columns if col.startswith('enc_paym_')]
@@ -99,6 +124,18 @@ def definite_value_proportion_features_pipeline(
       чтобы зафиксировать дополнительные параметры заранее.
     """
     logger.info('FUNCTION definite_value_proportion_features_pipeline')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
+
 
     """
     Создадим словарь где для каждого признака перечислены значения,
@@ -144,6 +181,18 @@ def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
         pandas.DataFrame : Копия DataFrame с добавленным признаком 'is_zero_sum_prop_1'.
     """
     logger.info('FUNCTION from_is_zero_prop_1_create_sum_prop_1_feature_pipeline')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
+
 
     columns = [
         'is_zero_loans5_prop_1',
@@ -184,6 +233,18 @@ def mean_value_frequency_feature_pipeline(
       чтобы зафиксировать дополнительные параметры заранее.
     """
     logger.info('FUNCTION mean_value_frequency_feature_pipeline')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
+
 
     logger.info('New features')
 
@@ -234,6 +295,19 @@ def enc_paym_norm_group_sum_diff_pipeline(
     """
 
     logger.info('FUNCTION enc_paym_norm_group_sum_diff_pipeline')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
+
+
     logger.info('New features')
 
     # Создаём временный датафрейм со столбцом id из df
@@ -368,6 +442,18 @@ def pre_since_opened_sum_mean_repeated_pipeline(
         добавленным признаком 'pre_since_opened_repeated_prop'.
     """
     logger.info('FUNCTION pre_since_opened_sum_mean_repeated_pipeline')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
+
 
     # Считаем количество каждого значения 'pre_since_opened' для каждого 'id'
     counts = df.groupby(['id', 'pre_since_opened']).size()
@@ -418,17 +504,42 @@ def drop_columns_drop_duplicates_pipeline(
     """
 
     logger.info('FUNCTION drop_columns_drop_duplicates_pipeline')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
+
 
     df = df.drop(columns_list, axis=1)
+    # Явно вызываем сборщик мусора для освобождения памяти,
+    # используемой предыдущими объектами DataFrame
+    gc.collect()
 
-    """
-    Удаляем дубликаты по столбцу 'id', оставляя первую запись
-    и сбрасываем индекс.
-    """
-    df = df.drop_duplicates(subset=['id'], keep='first').reset_index(drop=True)
+    # Посчитаем и выведем в лог количество дубликатов по id
+    n_dupes = df.duplicated().sum()
+    logger.info(f" {n_dupes} duplicate records found")
+
+    # Удаляем дубликаты по столбцу 'id', оставляя первую запись
+    # и сразу сбрасываем индекс это экономит немного памяти.
+    df = df.drop_duplicates(subset=['id'], keep='first', ignore_index=True)
+
+    # Явно вызываем сборщик мусора для освобождения памяти,
+    # используемой предыдущими объектами DataFrame
+    gc.collect()
 
     # Удаляем столбец 'id', так как он больше не нужен
     df = df.drop('id', axis=1)
+
+    # Явно вызываем сборщик мусора для освобождения памяти,
+    # используемой предыдущими объектами DataFrame
+    gc.collect()
 
     return df
 
