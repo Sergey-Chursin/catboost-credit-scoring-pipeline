@@ -36,7 +36,10 @@ from config import (
     CLASSES_METRIC_LIST,
     PREDICT_FILE_EXTENSION,
     CAST_TYPE_MAP,
-    FILE_EXTENSION
+    FILE_EXTENSION,
+    DROP_LIST_DEFINITE_VALUE_PROP,
+    DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF,
+    DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE
 )
 
 from data_utils import (
@@ -54,7 +57,7 @@ from log_config import setup_logging
 from preprocessing import (
     SampleMedianImputer,
     convert_all_to_numeric_pipeline,
-    convert_all_to_int_pipeline,
+    cast_columns_by_map_pipeline,
     drop_duplicates_pipeline,
 )
 
@@ -229,10 +232,15 @@ def main_pipeline(
         n_splits: int,
         seed: int,
         shuffle: bool,
-        prop_features_dict: Dict[str, Any],
+        drop_list_enc_paym_norm_summ_diff: List['str'],
         mean_freq_source_list: List[str],
+        drop_list_mean_value_frequency_feature: List['str'],
+        prop_features_dict: Dict[str, Any],
+        drop_list_definite_value_prop: List['str'],
         drop_list: List[str],
-        logger: Optional[logging.Logger] = None
+        cast_type_map: Dict[str, str],
+        logger: Optional[logging.Logger] = None,
+
 ):
     """
     Создаёт и возвращает основной Pipeline для обучения и предсказания.
@@ -251,11 +259,20 @@ def main_pipeline(
         n_splits (int): Количество фолдов для ансамблирования моделей (StratifiedKFold).
         seed (int): Seed для воспроизводимости разбиения и обучения моделей.
         shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
-        prop_features_dict (Dict[str, Any]): Словарь, определяющий признаки и значения для создания
-            пропорциональных фичей в функции definite_value_proportion_features_pipeline.
+        drop_list_enc_paym_norm_summ_diff: List['str']: Список колонок на удаление в функции
+            enc_paym_norm_group_sum_diff_pipeline.
         mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в функции
             mean_value_frequency_feature_pipeline.
+        drop_list_mean_value_frequency_feature: List['str']: Список колонок на удаление в функции
+            mean_value_frequency_feature_pipeline.
+        prop_features_dict (Dict[str, Any]): Словарь, определяющий признаки и значения для создания
+            пропорциональных фичей в функции definite_value_proportion_features_pipeline.
+        drop_list_definite_value_prop: List['str']: Список признаков для удаления в
+            в функции definite_value_proportion_features_pipeline.
+
         drop_list (List[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
+        cast_type_map : dict  Словарь соответствия для приведения типов колонок
+            {имя_колонки('str'): тип('str')}.
         logger (Optional[logging.Logger], default=None): Логгер для сообщений.
             Если None (по умолчанию), логирование этапов данной функции будет отключено.
 
@@ -263,16 +280,36 @@ def main_pipeline(
         sklearn.pipeline.Pipeline: Собранный pipeline, готовый для обучения (fit)
             или предсказания (predict/predict_proba).
     """
+
     # Создаём SampleMedianImputer для заполнения пустых значений медианами
     imputer = SampleMedianImputer(sample_frac=sample_frac)
 
     # Создаём паплайн препроцессинга данных
-    preprocessing_pipe = Pipeline([
-        ('to_numeric', FunctionTransformer(convert_all_to_numeric_pipeline)),
-        ('imputer', imputer),
-        ('to_int', FunctionTransformer(convert_all_to_int_pipeline)),
-        ('drop_duplicates', FunctionTransformer(drop_duplicates_pipeline))
-    ])
+    preprocessing_pipe = Pipeline(
+        [
+            (
+            'to_numeric',
+            FunctionTransformer(convert_all_to_numeric_pipeline)
+            ),
+            (
+            'imputer',
+            imputer
+            ),
+            (
+            'cast_type',
+            FunctionTransformer(
+                partial(
+                    cast_columns_by_map_pipeline,
+                    cast_type_map=cast_type_map
+                )
+            )
+            ),
+            (
+            'drop_duplicates',
+            FunctionTransformer(drop_duplicates_pipeline)
+            )
+        ]
+    )
     
     # Создадим объект классификатора
     classifier = CatBoostEnsembleClassifier(
@@ -296,30 +333,44 @@ def main_pipeline(
                 'create_rn_max_feature',
                 FunctionTransformer(rn_max_feature_pipeline)
             ),
+
             (
                 'enc_paym_transcoding',
                 FunctionTransformer(enc_paym_transcoding_pipeline)
             ),
             (
+                'from_enc_paym_create_normalized_group_sum_features_then_diff_features',
+                FunctionTransformer(
+                    partial(
+                        enc_paym_norm_group_sum_diff_pipeline,
+                        drop_list=drop_list_enc_paym_norm_summ_diff
+                    ))
+            ),
+            (
+                'create_mean_value_frequency_feature',
+                FunctionTransformer(
+                    partial(
+                        mean_value_frequency_feature_pipeline,
+                        columns_list=mean_freq_source_list,
+                        drop_list=drop_list_mean_value_frequency_feature
+                    )
+                )
+            ),
+            (
                 'create_definite_value_proportion_features',
                 FunctionTransformer(
-                    partial(definite_value_proportion_features_pipeline, features_dictionary=prop_features_dict)
+                    partial(
+                        definite_value_proportion_features_pipeline,
+                        features_dictionary=prop_features_dict,
+                        drop_list=drop_list_definite_value_prop
+                    )
                 )
             ),
             (
                 'create_sum_prop_1_feature',
                 FunctionTransformer(from_is_zero_prop_1_create_sum_prop_1_feature_pipeline)
             ),
-            (
-                'create_mean_value_frequency_feature',
-                FunctionTransformer(
-                    partial(mean_value_frequency_feature_pipeline, columns_list=mean_freq_source_list)
-                )
-            ),
-            (
-                'from_enc_paym_create_normalized_group_sum_features_then_diff_features',
-                FunctionTransformer(enc_paym_norm_group_sum_diff_pipeline)
-            ),
+
             (
                 'from_pre_since_opened_create_pre_since_opened_sum_mean_repeated',
                 FunctionTransformer(pre_since_opened_sum_mean_repeated_pipeline)
@@ -392,12 +443,15 @@ def run_train_coordinator(
         shuffle: bool,
         eval_metric: str,
         verbose: bool,
-        prop_features_dict: Dict[str, Any],
+        drop_list_enc_paym_norm_summ_diff: List['str'],
         mean_freq_source_list: List[str],
+        drop_list_mean_value_frequency_feature: List['str'],
+        prop_features_dict: Dict[str, Any],
+        drop_list_definite_value_prop: List['str'],
         drop_list: List[str],
         classes_metric_list: List[str],
+        cast_type_map: Optional[dict],
         logger: Optional[logging.Logger] = None,
-        cast_type_map: Optional[dict] = None,
         mask: Optional[str] = None,
         file_ext: str = ".pq"
 ):
@@ -425,18 +479,24 @@ def run_train_coordinator(
         shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
         eval_metric (str): Режим расчёта метрик после обучения.
         verbose (bool): Включить прогресс-бары.
-        prop_features_dict (Dict[str, Any]): Словарь, определяющий признаки и значения для создания
-            пропорциональных фичей в функции definite_value_proportion_features_pipeline.
+        drop_list_enc_paym_norm_summ_diff: List['str']: Список колонок на удаление в функции
+            enc_paym_norm_group_sum_diff_pipeline.
         mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в функции
             mean_value_frequency_feature_pipeline.
+        drop_list_mean_value_frequency_feature: List['str']: Список колонок на удаление в функции
+            mean_value_frequency_feature_pipeline.
+        prop_features_dict (Dict[str, Any]): Словарь, определяющий признаки и значения для создания
+            пропорциональных фичей в функции definite_value_proportion_features_pipeline.
+        drop_list_definite_value_prop: List['str']: Список признаков для удаления в
+            в функции definite_value_proportion_features_pipeline.
         drop_list (List[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
         classes_metric_list: (List[str]) Список метрик требующих метки классов для расчета.
             Используется в pred_and_metrics_compatible.
-        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
-            Если None (по умолчанию), логирование этапов данной функции будет отключено.
         cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип},
             где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
             Если None, типы не приводятся.
+        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
+            Если None (по умолчанию), логирование этапов данной функции будет отключено.
         mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
@@ -471,6 +531,7 @@ def run_train_coordinator(
     # Загружаем датасет
     if logger is not None:
         logger.info('Loading raw dataset')
+
     raw_data = load_dataset(
         path_to_dataset=raw_data_path,
         num_parts_to_preprocess_at_once=num_parts_to_preprocess_at_once,
@@ -499,6 +560,7 @@ def run_train_coordinator(
     # Обучаем пайплайн
     if logger is not None:
         logger.info('Fitting the main pipeline')
+
     pipe = main_pipeline(
         sample_frac=sample_frac,
         params_list=params_list,
@@ -508,9 +570,13 @@ def run_train_coordinator(
         n_splits=n_splits,
         seed=seed,
         shuffle=shuffle,
-        prop_features_dict=prop_features_dict,
+        drop_list_enc_paym_norm_summ_diff=drop_list_enc_paym_norm_summ_diff,
         mean_freq_source_list=mean_freq_source_list,
+        drop_list_mean_value_frequency_feature=drop_list_mean_value_frequency_feature,
+        prop_features_dict=prop_features_dict,
+        drop_list_definite_value_prop=drop_list_definite_value_prop,
         drop_list=drop_list,
+        cast_type_map=cast_type_map,
         logger=logger
     ).fit(
         train_test_dict['X_train'],
@@ -551,8 +617,8 @@ def run_test_coordinator(
         eval_metrics: str,
         classes_metric_list: List[str],
         verbose: bool,
+        cast_type_map: Optional[dict],
         logger: Optional[logging.Logger] = None,
-        cast_type_map: Optional[dict] = None,
         mask: Optional[str] = None,
         file_ext: str = ".pq"
 
@@ -580,11 +646,11 @@ def run_test_coordinator(
         classes_metric_list: (List[str]) Список метрик требующих метки классов для расчета.
             Используется в pred_and_metrics_compatible.
         verbose (bool): Включить  прогресс-бары.
-        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
-            Если None (по умолчанию), логирование этапов данной функции будет отключено.
         cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип},
             где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
             Если None, типы не приводятся.
+        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
+            Если None (по умолчанию), логирование этапов данной функции будет отключено.
         mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
@@ -726,8 +792,8 @@ def run_inference_coordinator(
         output: str,
         output_dir: str,
         verbose: bool,
+        cast_type_map: Optional[dict],
         logger: Optional[logging.Logger] = None,
-        cast_type_map: Optional[dict] = None,
         mask: Optional[str] = None,
         file_ext: str = ".pq"
 ):
@@ -749,11 +815,11 @@ def run_inference_coordinator(
         output (str): Режим вывода предсказаний: 'proba' (вероятности классов) или 'predict' (метки классов).
         output_dir (str): Директория для сохранения итогового файла с предсказаниями.
         verbose (bool): Включить расширенный режим логирования и прогресс-бары.
-        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
-            Если None (по умолчанию), логирование этапов данной функции будет отключено.
         cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип},
             где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
             Если None, типы не приводятся.
+        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
+            Если None (по умолчанию), логирование этапов данной функции будет отключено.
         mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
@@ -889,12 +955,15 @@ if __name__ == "__main__":
             shuffle=SHUFFLE,
             eval_metric=args.eval_metrics,
             verbose=verbose,
-            prop_features_dict=PROP_FEATURES_DICT,
+            drop_list_enc_paym_norm_summ_diff=DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF,
             mean_freq_source_list=MEAN_FREQ_SOURCE_LIST,
+            drop_list_mean_value_frequency_feature=DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE,
+            prop_features_dict=PROP_FEATURES_DICT,
+            drop_list_definite_value_prop=DROP_LIST_DEFINITE_VALUE_PROP,
             drop_list=DROP_LIST,
             classes_metric_list=CLASSES_METRIC_LIST,
-            logger=logger,
             cast_type_map=CAST_TYPE_MAP,
+            logger=logger,
             file_ext=FILE_EXTENSION
         ),
         'test': lambda: run_test_coordinator(
@@ -914,8 +983,8 @@ if __name__ == "__main__":
             eval_metrics=args.eval_metrics,
             classes_metric_list=CLASSES_METRIC_LIST,
             verbose=verbose,
-            logger=logger,
             cast_type_map=CAST_TYPE_MAP,
+            logger=logger,
             file_ext=FILE_EXTENSION
         ),
         'inference': lambda: run_inference_coordinator(
@@ -929,8 +998,8 @@ if __name__ == "__main__":
             output=args.output,
             output_dir=args.output_dir,
             verbose=verbose,
-            logger=logger,
             cast_type_map=CAST_TYPE_MAP,
+            logger=logger,
             file_ext=FILE_EXTENSION
         )
     }

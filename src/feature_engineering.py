@@ -40,13 +40,14 @@ def rn_max_feature_pipeline(
     # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
     gc.collect()
 
+    # Для каждой строки определяем максимальное значение 'rn' среди всех строк с тем же 'id'
+    #Метод transform('max') возвращает Series длины исходного DataFrame, где для каждой строки
+    #указано максимальное значение 'rn' в её группе 'id'.
 
-    """
-    Для каждой строки определяем максимальное значение 'rn' среди всех строк с тем же 'id'
-    Метод transform('max') возвращает Series длины исходного DataFrame, где для каждой строки
-    указано максимальное значение 'rn' в её группе 'id'.
-    """
     df['rn_max'] = df.groupby('id')['rn'].transform('max')
+
+    # Удаляем уже не нужный столбец для экономии памяти
+    df = df.drop('rn', axis=1)
 
     return df
 
@@ -98,179 +99,9 @@ def enc_paym_transcoding_pipeline(
 
     return df
 
-
-def definite_value_proportion_features_pipeline(
-        df: pd.DataFrame,
-        features_dictionary: Dict[str, Any]
-) -> pd.DataFrame:
-    """
-    Создаёт и добавляет в датафрейм новые частотные признаки
-    на основе заданных значений исходных признаков.
-
-    Для каждого столбца и каждого указанного значения в словаре функция создаёт новые признаки,
-    отражающие долю записей с этим значением относительно общего количества
-    кредитов (rn_max) для каждого id.
-
-    Args:
-        df : Исходный DataFrame, содержащий необходимые признаки и колонку 'rn_max'.
-        features_dictionary: Dict[str, Any] - Словарь где ключами являются названия колонок,
-            а значениями уникальные значения колонки которые требуется обработать.
-    Returns:
-        pandas.DataFrame : Копия исходного DataFrame с добавленными частотными признаками.
-
-    ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
-    (который ожидает функцию только с одним аргументом — DataFrame).
-     Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
-      чтобы зафиксировать дополнительные параметры заранее.
-    """
-    logger.info('FUNCTION definite_value_proportion_features_pipeline')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
-
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
-
-
-    """
-    Создадим словарь где для каждого признака перечислены значения,
-    по которым считаем долю.
-    """
-
-    # Итерируем по ключам
-    for col in features_dictionary.keys():
-        logger.info('Original feature %s', col)
-        logger.info('New features')
-
-        # Итерируем по значениям
-        for value in features_dictionary[col]:
-            new_column = f'{col}_prop_{value}'
-            logger.info(new_column)
-
-            """
-            Создаём булевую маску: True, если значение в col равно value,
-            иначе False.
-            """
-            mask = (df[col] == value)
-            """
-            Для каждой строки вычисляем количество совпадений value 
-            по id (transform('sum')) и делим на общее количество кредитов 
-            по id (rn_max), чтобы получить долю.
-            """
-            df[new_column] = mask.groupby(df['id']).transform('sum') / df['rn_max']
-
-    return df
-
-
-def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
-        df: pd.DataFrame
-) -> pd.DataFrame:
-    """
-    Вычисляет среднее значение признаков is_zero_*_prop_1 по строкам и добавляет
-    новый признак 'is_zero_sum_prop_1' в DataFrame.
-
-    Args:
-        df :  Исходный DataFrame с признаками is_zero_*_prop_1.
-
-    Returns:
-        pandas.DataFrame : Копия DataFrame с добавленным признаком 'is_zero_sum_prop_1'.
-    """
-    logger.info('FUNCTION from_is_zero_prop_1_create_sum_prop_1_feature_pipeline')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
-
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
-
-
-    columns = [
-        'is_zero_loans5_prop_1',
-        'is_zero_loans530_prop_1',
-        'is_zero_loans3060_prop_1',
-        'is_zero_loans6090_prop_1',
-        'is_zero_loans90_prop_1'
-    ]
-
-    df['is_zero_sum_prop_1'] = df[columns].sum(axis=1) / 5
-
-    return df
-
-
-def mean_value_frequency_feature_pipeline(
-        df: pd.DataFrame,
-        columns_list: List[str]
-) -> pd.DataFrame:
-    """
-    Cоздаёт новые агрегированные признаки,
-    отражающий среднюю частоту (относительную встречаемость) значений
-    заданных столбцов columns_list датафрейма для каждого уникального id.
-    Результат добавляется в  датафрейм
-    с нормировкой на количество записей (rn_max) для каждого id.
-
-    Args:
-        df: (pd.DataFrame)  Исходный DataFrame с признаками из columns_list.
-        columns_list: (List[str]) Список столбцов, для которых считаем среднюю частоту значений
-
-    Returns:
-        pandas.DataFrame :  Копия DataFrame с добавленным новым столбцом {column}_mean_freq,
-        содержащим нормированное агрегированное значение средней
-        частоты значений column для каждого id.
-
-    ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
-    (который ожидает функцию только с одним аргументом — DataFrame).
-     Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
-      чтобы зафиксировать дополнительные параметры заранее.
-    """
-    logger.info('FUNCTION mean_value_frequency_feature_pipeline')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
-
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
-
-
-    logger.info('New features')
-
-    for col in columns_list:
-        new_column = f'{col}_mean_freq'
-        logger.info(new_column)
-
-        # Вычисляем относительную частоту каждого уникального значения в столбце
-        bin_freq = df[col].value_counts(normalize=True).to_dict()
-
-        # Создаём Series с частотами значений для каждой строки
-        freq_series = df[col].map(bin_freq)
-        """
-        Для каждой строки считаем сумму частот значений (freq_series) по группе 'id'.
-        Делим эту сумму на общее количество записей по id (rn_max),
-        чтобы получить нормированную среднюю частоту встречаемости значений
-        признака для данного id.
-        Результат сохраняем в новый столбец new_column.
-        """
-        df[new_column] = freq_series.groupby(df['id']).transform('sum') / df['rn_max']
-
-    return df
-
-
 def enc_paym_norm_group_sum_diff_pipeline(
-        df: pd.DataFrame
+        df: pd.DataFrame,
+        drop_list: List['str']
 ) -> pd.DataFrame:
     """
     Генерирует признаки разницы между средними количествами различных статусов платежей
@@ -288,6 +119,8 @@ def enc_paym_norm_group_sum_diff_pipeline(
 
     Args:
         df :  Исходный DataFrame с признаками из columns_list.
+        drop_list: List['str']: Список уже не нужных признаков,
+            для удаления из датафрейма
 
     Returns:
         pandas.DataFrame :  Копия DataFrame с добавленными итоговыми признаками
@@ -391,6 +224,10 @@ def enc_paym_norm_group_sum_diff_pipeline(
                 / df['rn_max']
         )
 
+    # Удаляем временный df_buff
+    del df_buff
+    gc.collect()
+
     # Создаём фичи разницы
     df['enc_paym_avg_0_1_this_year_diff'] = (
             df['enc_paym_avg_0_this_year'] -
@@ -415,8 +252,224 @@ enc_paym_avg_0_years_diff
 """
                 )
 
+    # Выведем размер датафрейма и типы колонок
+    logger.info(f"DataFrame shape: {df.shape}")
+    for col, dtype in df.dtypes.items():
+        logger.info(f"{col}: {dtype}")
+
+
+    # Удаляем уже не нужные колонки
+    df = df.drop(drop_list, axis=1)
+    gc.collect()
+    logger.info(f"DataFrame shape after drop(): {df.shape}")
+
     return df
 
+def mean_value_frequency_feature_pipeline(
+        df: pd.DataFrame,
+        columns_list: List[str],
+        drop_list: List[str]
+) -> pd.DataFrame:
+    """
+    Cоздаёт новые агрегированные признаки,
+    отражающий среднюю частоту (относительную встречаемость) значений
+    заданных столбцов columns_list датафрейма для каждого уникального id.
+    Результат добавляется в  датафрейм
+    с нормировкой на количество записей (rn_max) для каждого id.
+
+    Args:
+        df: (pd.DataFrame)  Исходный DataFrame с признаками из columns_list.
+        columns_list: (List[str]) Список столбцов, для которых считаем среднюю частоту значений
+        drop_list: List['str']: Список уже не нужных признаков,
+            для удаления из датафрейма
+
+    Returns:
+        pandas.DataFrame :  Копия DataFrame с добавленным новым столбцом {column}_mean_freq,
+        содержащим нормированное агрегированное значение средней
+        частоты значений column для каждого id.
+
+    ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
+    (который ожидает функцию только с одним аргументом — DataFrame).
+     Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
+      чтобы зафиксировать дополнительные параметры заранее.
+    """
+    logger.info('FUNCTION mean_value_frequency_feature_pipeline')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
+
+
+    logger.info('New features')
+
+    for col in columns_list:
+        new_column = f'{col}_mean_freq'
+        logger.info(new_column)
+
+        # Вычисляем относительную частоту каждого уникального значения в столбце
+        bin_freq = df[col].value_counts(normalize=True).to_dict()
+
+        # Создаём Series с частотами значений для каждой строки
+        freq_series = df[col].map(bin_freq)
+        """
+        Для каждой строки считаем сумму частот значений (freq_series) по группе 'id'.
+        Делим эту сумму на общее количество записей по id (rn_max),
+        чтобы получить нормированную среднюю частоту встречаемости значений
+        признака для данного id.
+        Результат сохраняем в новый столбец new_column.
+        """
+        df[new_column] = freq_series.groupby(df['id']).transform('sum') / df['rn_max']
+
+    # Выведем размер датафрейма и типы колонок
+    logger.info(f"DataFrame shape: {df.shape}")
+    for col, dtype in df.dtypes.items():
+        logger.info(f"{col}: {dtype}")
+
+    logger.info("Drop columns")
+    # Удаляем уже не нужные колонки
+    df = df.drop(drop_list, axis=1)
+    gc.collect()
+
+    # Выведем размер датафрейма и типы колонок
+    logger.info(f"DataFrame shape: {df.shape}")
+    for col, dtype in df.dtypes.items():
+        logger.info(f"{col}: {dtype}")
+
+    return df
+
+
+def definite_value_proportion_features_pipeline(
+        df: pd.DataFrame,
+        features_dictionary: Dict[str, Any],
+        drop_list: List['str']
+) -> pd.DataFrame:
+    """
+    Создаёт и добавляет в датафрейм новые частотные признаки
+    на основе заданных значений исходных признаков.
+
+    Для каждого столбца и каждого указанного значения в словаре функция создаёт новые признаки,
+    отражающие долю записей с этим значением относительно общего количества
+    кредитов (rn_max) для каждого id.
+
+    Args:
+        df : Исходный DataFrame, содержащий необходимые признаки и колонку 'rn_max'.
+        features_dictionary: Dict[str, Any] - Словарь где ключами являются названия колонок,
+            а значениями уникальные значения колонки которые требуется обработать.
+        drop_list: List['str'] - Список уже не нужных признаков для удаления
+    Returns:
+        pandas.DataFrame : Копия исходного DataFrame с добавленными частотными признаками.
+
+    ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
+    (который ожидает функцию только с одним аргументом — DataFrame).
+     Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
+      чтобы зафиксировать дополнительные параметры заранее.
+    """
+    logger.info('FUNCTION definite_value_proportion_features_pipeline')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
+
+    """
+    Создадим словарь где для каждого признака перечислены значения,
+    по которым считаем долю.
+    """
+
+    # Итерируем по ключам
+    for col in features_dictionary.keys():
+        logger.info('Original feature %s', col)
+        logger.info('New features')
+
+        # Итерируем по значениям
+        for value in features_dictionary[col]:
+            new_column = f'{col}_prop_{value}'
+            logger.info(new_column)
+
+            """
+            Создаём булевую маску: True, если значение в col равно value,
+            иначе False.
+            """
+            mask = (df[col] == value)
+            """
+            Для каждой строки вычисляем количество совпадений value 
+            по id (transform('sum')) и делим на общее количество кредитов 
+            по id (rn_max), чтобы получить долю.
+            """
+            df[new_column] = mask.groupby(df['id']).transform('sum') / df['rn_max']
+        if col in drop_list:
+            df = df.drop(col, axis=1)
+            gc.collect()
+
+    # Выведем размер датафрейма и типы колонок
+    logger.info(f"DataFrame shape: {df.shape}")
+    for col, dtype in df.dtypes.items():
+        logger.info(f"{col}: {dtype}")
+
+    return df
+
+
+def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
+        df: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Вычисляет среднее значение признаков is_zero_*_prop_1 по строкам и добавляет
+    новый признак 'is_zero_sum_prop_1' в DataFrame.
+
+    Args:
+        df :  Исходный DataFrame с признаками is_zero_*_prop_1.
+
+    Returns:
+        pandas.DataFrame : Копия DataFrame с добавленным признаком 'is_zero_sum_prop_1'.
+    """
+    logger.info('FUNCTION from_is_zero_prop_1_create_sum_prop_1_feature_pipeline')
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+
+    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
+    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
+    # Обычная копия (df.copy()) дефрагментирует объект.
+    df = df.copy()
+    logger.info(
+        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
+    )
+    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
+    gc.collect()
+
+    # Выведем размер датафрейма и типы колонок
+    logger.info(f"DataFrame shape: {df.shape}")
+    for col, dtype in df.dtypes.items():
+        logger.info(f"{col}: {dtype}")
+
+
+    columns = [
+        'is_zero_loans5_prop_1',
+        'is_zero_loans530_prop_1',
+        'is_zero_loans3060_prop_1',
+        'is_zero_loans6090_prop_1',
+        'is_zero_loans90_prop_1'
+    ]
+
+    df['is_zero_sum_prop_1'] = df[columns].sum(axis=1) / 5
+
+    # Выведем размер датафрейма и типы колонок
+    logger.info(f"DataFrame shape: {df.shape}")
+    for col, dtype in df.dtypes.items():
+        logger.info(f"{col}: {dtype}")
+
+    return df
 
 def pre_since_opened_sum_mean_repeated_pipeline(
         df: pd.DataFrame
@@ -478,6 +531,11 @@ def pre_since_opened_sum_mean_repeated_pipeline(
             df['pre_since_opened_repeated_prop'] / df['rn_max']
     )
 
+    # Выведем размер датафрейма и типы колонок
+    logger.info(f"DataFrame shape: {df.shape}")
+    for col, dtype in df.dtypes.items():
+        logger.info(f"{col}: {dtype}")
+
     return df
 
 
@@ -534,12 +592,22 @@ def drop_columns_drop_duplicates_pipeline(
     # используемой предыдущими объектами DataFrame
     gc.collect()
 
+    # Выведем размер датафрейма и типы колонок
+    logger.info(f"DataFrame shape: {df.shape}")
+    for col, dtype in df.dtypes.items():
+        logger.info(f"{col}: {dtype}")
+
     # Удаляем столбец 'id', так как он больше не нужен
     df = df.drop('id', axis=1)
 
     # Явно вызываем сборщик мусора для освобождения памяти,
     # используемой предыдущими объектами DataFrame
     gc.collect()
+
+    # Выведем размер датафрейма и типы колонок
+    logger.info(f"DataFrame shape: {df.shape}")
+    for col, dtype in df.dtypes.items():
+        logger.info(f"{col}: {dtype}")
 
     return df
 

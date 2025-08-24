@@ -62,6 +62,61 @@ CLASSES_METRIC_LIST = ['acc']
 Словари и списки признаков для управления функциями 
 pipeline. Собираются в ноутбуке pipeline_config_builder.ipynb и копируются сюда.
 """
+# Список признаков для загрузки из исходного датасета
+PRE_FEATURES = [
+    'id',
+    'rn',
+    'pre_since_opened',
+    'pre_since_confirmed',
+    'pre_pterm',
+    'pre_fterm',
+    'pre_till_pclose',
+    'pre_till_fclose',
+    'pre_loans_credit_limit',
+    'pre_loans_next_pay_summ',
+    'pre_loans_outstanding',
+    'pre_loans_max_overdue_sum',
+    'pre_loans_credit_cost_rate',
+    'pre_loans5',
+    'pre_loans530',
+    'is_zero_loans5',
+    'is_zero_loans530',
+    'pre_util',
+    'pre_over2limit',
+    'is_zero_over2limit',
+    'enc_paym_0',
+    'enc_paym_1',
+    'enc_paym_2',
+    'enc_paym_8',
+    'enc_paym_9',
+    'enc_paym_10',
+    'enc_paym_24',
+    'enc_loans_account_holder_type',
+    'enc_loans_credit_status',
+    'enc_loans_credit_type',
+    'enc_loans_account_cur',
+    'is_zero_loans3060',
+    'is_zero_loans6090',
+    'is_zero_loans90',
+    'enc_paym_3',
+    'enc_paym_4',
+    'enc_paym_5',
+    'enc_paym_6',
+    'enc_paym_7',
+    'enc_paym_11',
+    'enc_paym_12',
+    'enc_paym_13',
+    'enc_paym_14',
+    'enc_paym_15',
+    'enc_paym_16',
+    'enc_paym_17',
+    'enc_paym_18',
+    'enc_paym_19',
+    'enc_paym_20',
+    'enc_paym_21',
+    'enc_paym_22',
+    'enc_paym_23'
+]
 
 # Словарь для приведения колонок к нужным типам
 CAST_TYPE_MAP = {
@@ -119,42 +174,13 @@ CAST_TYPE_MAP = {
     'enc_paym_23': 'int8',
 }
 
-# Список признаков для загрузки из исходного датасета
-PRE_FEATURES = [
-    'id',
-    'rn',
-    'pre_since_opened',
-    'pre_since_confirmed',
-    'pre_pterm',
-    'pre_fterm',
-    'pre_till_pclose',
-    'pre_till_fclose',
-    'pre_loans_credit_limit',
-    'pre_loans_next_pay_summ',
-    'pre_loans_outstanding',
-    'pre_loans_max_overdue_sum',
-    'pre_loans_credit_cost_rate',
-    'pre_loans5',
-    'pre_loans530',
-    'is_zero_loans5',
-    'is_zero_loans530',
-    'pre_util',
-    'pre_over2limit',
-    'is_zero_over2limit',
-    'enc_paym_0',
+"""
+Список колонок на удаление в функции
+enc_paym_norm_group_sum_diff_pipeline
+"""
+DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF = [
     'enc_paym_1',
     'enc_paym_2',
-    'enc_paym_8',
-    'enc_paym_9',
-    'enc_paym_10',
-    'enc_paym_24',
-    'enc_loans_account_holder_type',
-    'enc_loans_credit_status',
-    'enc_loans_credit_type',
-    'enc_loans_account_cur',
-    'is_zero_loans3060',
-    'is_zero_loans6090',
-    'is_zero_loans90',
     'enc_paym_3',
     'enc_paym_4',
     'enc_paym_5',
@@ -172,7 +198,50 @@ PRE_FEATURES = [
     'enc_paym_20',
     'enc_paym_21',
     'enc_paym_22',
-    'enc_paym_23'
+    'enc_paym_23',
+    'enc_paym_avg_1_all',
+    'enc_paym_avg_2_all',
+    'enc_paym_avg_0_this_year',
+    'enc_paym_avg_1_this_year',
+    'enc_paym_avg_0_last_year',
+]
+
+"""
+Спиcок признаков исходного датасета
+для создания фичей средней частотности функцией
+mean_value_frequency_feature_pipeline
+"""
+MEAN_FREQ_SOURCE_LIST = [
+    'pre_util',
+    'pre_loans_credit_limit',
+    'pre_since_opened',
+    'pre_loans_credit_cost_rate',
+    'enc_loans_credit_type',
+    'pre_loans_next_pay_summ',
+    'pre_since_confirmed',
+    'pre_pterm',
+    'enc_paym_0',
+    'enc_loans_account_holder_type',
+    'pre_loans530',
+    'enc_paym_8',
+    'pre_loans5',
+    'enc_paym_10',
+    'enc_loans_account_cur',
+    'enc_paym_9'
+]
+
+"""
+Список признаков для удаления в функции 
+definite_value_proportion_features_pipeline
+Сформирован вручную
+"""
+DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE = [
+    'pre_loans530',
+    'enc_paym_8',
+    'pre_loans5',
+    'enc_paym_10',
+    'enc_loans_account_cur',
+    'enc_paym_9'
 ]
 
 """
@@ -207,94 +276,118 @@ PROP_FEATURES_DICT = {
 }
 
 """
-Спиcок признаков исходного датасета
-для создания фичей средней частотности функцией
-mean_value_frequency_feature_pipeline
+Список признаков для удаления в функции 
+definite_value_proportion_features_pipeline
+Сформирован вручную
 """
-MEAN_FREQ_SOURCE_LIST = [
-    'pre_util',
-    'pre_loans_credit_limit',
-    'pre_since_opened',
-    'pre_loans_credit_cost_rate',
-    'enc_loans_credit_type',
+DROP_LIST_DEFINITE_VALUE_PROP = [
     'pre_loans_next_pay_summ',
+    'enc_paym_0',
+    'pre_till_fclose',
+    'enc_loans_credit_type',
+    'is_zero_loans5',
+    'pre_over2limit',
+    'pre_loans_credit_cost_rate',
+    'pre_loans_outstanding',
+    'enc_loans_credit_status',
+    'is_zero_over2limit',
+    'pre_fterm',
+    'pre_loans_credit_limit',
+    'pre_loans_max_overdue_sum',
+    'is_zero_loans530',
+    'enc_paym_24',
+    'pre_util',
     'pre_since_confirmed',
     'pre_pterm',
-    'enc_paym_0',
     'enc_loans_account_holder_type',
-    'pre_loans530',
-    'enc_paym_8',
-    'pre_loans5',
-    'enc_paym_10',
-    'enc_loans_account_cur',
-    'enc_paym_9'
+    'pre_till_pclose',
+    'is_zero_loans3060',
+    'is_zero_loans6090',
+    'is_zero_loans90'
 ]
+
+
 
 """
 Список признокав удаляемых из исходного датасета
 функцией drop_columns_drop_duplicates_pipeline
 """
+
+
+# Укороченный список после функций
+# rn_max_feature_pipeline
+# enc_paym_norm_group_sum_diff_pipeline
+# mean_value_frequency_feature_pipeline
+# definite_value_proportion_features_pipeline
 DROP_LIST = [
-    'rn',
     'pre_since_opened',
-    'pre_since_confirmed',
-    'pre_pterm',
-    'pre_fterm',
-    'pre_till_pclose',
-    'pre_till_fclose',
-    'pre_loans_credit_limit',
-    'pre_loans_next_pay_summ',
-    'pre_loans_outstanding',
-    'pre_loans_max_overdue_sum',
-    'pre_loans_credit_cost_rate',
-    'pre_loans5',
-    'pre_loans530',
-    'is_zero_loans5',
-    'is_zero_loans530',
-    'pre_util',
-    'pre_over2limit',
-    'is_zero_over2limit',
-    'enc_paym_0',
-    'enc_paym_1',
-    'enc_paym_2',
-    'enc_paym_8',
-    'enc_paym_9',
-    'enc_paym_10',
-    'enc_paym_24',
-    'enc_loans_account_holder_type',
-    'enc_loans_credit_status',
-    'enc_loans_credit_type',
-    'enc_loans_account_cur',
-    'is_zero_loans3060',
-    'is_zero_loans6090',
-    'is_zero_loans90',
-    'enc_paym_3',
-    'enc_paym_4',
-    'enc_paym_5',
-    'enc_paym_6',
-    'enc_paym_7',
-    'enc_paym_11',
-    'enc_paym_12',
-    'enc_paym_13',
-    'enc_paym_14',
-    'enc_paym_15',
-    'enc_paym_16',
-    'enc_paym_17',
-    'enc_paym_18',
-    'enc_paym_19',
-    'enc_paym_20',
-    'enc_paym_21',
-    'enc_paym_22',
-    'enc_paym_23',
-    'enc_paym_avg_1_all',
-    'enc_paym_avg_2_all',
-    'enc_paym_avg_0_this_year',
-    'enc_paym_avg_1_this_year',
-    'enc_paym_avg_0_last_year',
     'is_zero_loans3060_prop_1',
     'is_zero_loans6090_prop_1',
     'is_zero_loans90_prop_1'
 ]
+
+# Старый список со всеми фичами УДАЛИЬТЬ!!!
+# DROP_LIST = [
+#     'rn',
+#     'pre_since_opened',
+#     'pre_since_confirmed',
+#     'pre_pterm',
+#     'pre_fterm',
+#     'pre_till_pclose',
+#     'pre_till_fclose',
+#     'pre_loans_credit_limit',
+#     'pre_loans_next_pay_summ',
+#     'pre_loans_outstanding',
+#     'pre_loans_max_overdue_sum',
+#     'pre_loans_credit_cost_rate',
+#     'pre_loans5',
+#     'pre_loans530',
+#     'is_zero_loans5',
+#     'is_zero_loans530',
+#     'pre_util',
+#     'pre_over2limit',
+#     'is_zero_over2limit',
+#     'enc_paym_0',
+#     'enc_paym_1',
+#     'enc_paym_2',
+#     'enc_paym_8',
+#     'enc_paym_9',
+#     'enc_paym_10',
+#     'enc_paym_24',
+#     'enc_loans_account_holder_type',
+#     'enc_loans_credit_status',
+#     'enc_loans_credit_type',
+#     'enc_loans_account_cur',
+#     'is_zero_loans3060',
+#     'is_zero_loans6090',
+#     'is_zero_loans90',
+#     'enc_paym_3',
+#     'enc_paym_4',
+#     'enc_paym_5',
+#     'enc_paym_6',
+#     'enc_paym_7',
+#     'enc_paym_11',
+#     'enc_paym_12',
+#     'enc_paym_13',
+#     'enc_paym_14',
+#     'enc_paym_15',
+#     'enc_paym_16',
+#     'enc_paym_17',
+#     'enc_paym_18',
+#     'enc_paym_19',
+#     'enc_paym_20',
+#     'enc_paym_21',
+#     'enc_paym_22',
+#     'enc_paym_23',
+#     'enc_paym_avg_1_all',
+#     'enc_paym_avg_2_all',
+#     'enc_paym_avg_0_this_year',
+#     'enc_paym_avg_1_this_year',
+#     'enc_paym_avg_0_last_year',
+#     'is_zero_loans3060_prop_1',
+#     'is_zero_loans6090_prop_1',
+#     'is_zero_loans90_prop_1'
+# ]
 
 # Константы классификатора
 
