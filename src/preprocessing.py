@@ -61,6 +61,11 @@ def convert_all_to_numeric_pipeline(
     logger.info('FUNCTION convert_all_to_numeric_pipeline')
     logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
 
+    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
+    for obj in gc.get_objects():
+        if isinstance(obj, pd.DataFrame):
+            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
+
 
     # errors='coerce' при невозможности преобразования заменит на NaN.
     return df.apply(lambda col: pd.to_numeric(col, errors='coerce'))
@@ -74,7 +79,7 @@ def cast_columns_by_map_pipeline(
 
     Args:
         df : Исходный DataFrame.
-        cast_type_map : dict  Словарь соответствия {имя_колонки('str'): тип('str')}.
+        cast_type_map : dict  Словарь соответствия {имя_колонки(str): тип(str)}.
     Returns:
         pd.DataFrame : DataFrame, где указанные колонки приведены к нужному типу.
     """
@@ -86,11 +91,17 @@ def cast_columns_by_map_pipeline(
     # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
     # Обычная копия (df.copy()) дефрагментирует объект.
     df = df.copy()
+
     logger.info(
         f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
     )
     # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
     gc.collect()
+
+    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
+    for obj in gc.get_objects():
+        if isinstance(obj, pd.DataFrame):
+            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
 
     # Согласно логике preprocessing_pipe в датасете не должно остаться NaN,
     # но всё же введём проверку на всякий случай.
@@ -100,7 +111,7 @@ def cast_columns_by_map_pipeline(
         )
     for col, dtype in cast_type_map.items():
         if col in df.columns:
-            df[col] = df[col].astype(dtype)
+            df[col] = df[col].astype(dtype, copy=False)
     return df
 
 
@@ -167,12 +178,17 @@ def drop_duplicates_pipeline(
     # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
     # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
     # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
+    # df = df.copy()
     logger.info(
         f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
     )
     # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
     gc.collect()
+
+    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
+    for obj in gc.get_objects():
+        if isinstance(obj, pd.DataFrame):
+            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
 
 
     # Подсчитываем количество дублирующихся строк
