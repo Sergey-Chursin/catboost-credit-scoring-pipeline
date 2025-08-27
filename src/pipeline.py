@@ -2,8 +2,10 @@ import os
 import logging
 import argparse
 import pickle
+import gc
 from typing import Any, Optional, List, Dict
 from functools import partial
+
 
 import numpy as np
 
@@ -39,7 +41,8 @@ from config import (
     FILE_EXTENSION,
     DROP_LIST_DEFINITE_VALUE_PROP,
     DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF,
-    DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE
+    DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE,
+    FLOAT_DOWNCAST_COLUMNS_LIST
 )
 
 from data_utils import (
@@ -232,11 +235,12 @@ def main_pipeline(
         n_splits: int,
         seed: int,
         shuffle: bool,
-        drop_list_enc_paym_norm_summ_diff: List['str'],
+        drop_list_enc_paym_norm_summ_diff: List[str],
         mean_freq_source_list: List[str],
-        drop_list_mean_value_frequency_feature: List['str'],
+        drop_list_mean_value_frequency_feature: List[str],
         prop_features_dict: Dict[str, Any],
-        drop_list_definite_value_prop: List['str'],
+        float_downcast_columns_list: List[str],
+        drop_list_definite_value_prop: List[str],
         drop_list: List[str],
         cast_type_map: Dict[str, str],
         logger: Optional[logging.Logger] = None,
@@ -259,20 +263,22 @@ def main_pipeline(
         n_splits (int): Количество фолдов для ансамблирования моделей (StratifiedKFold).
         seed (int): Seed для воспроизводимости разбиения и обучения моделей.
         shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
-        drop_list_enc_paym_norm_summ_diff: List['str']: Список колонок на удаление в функции
+        drop_list_enc_paym_norm_summ_diff: List[str]: Список колонок на удаление в функции
             enc_paym_norm_group_sum_diff_pipeline.
         mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в функции
             mean_value_frequency_feature_pipeline.
-        drop_list_mean_value_frequency_feature: List['str']: Список колонок на удаление в функции
+        drop_list_mean_value_frequency_feature: List[str]: Список колонок на удаление в функции
             mean_value_frequency_feature_pipeline.
         prop_features_dict (Dict[str, Any]): Словарь, определяющий признаки и значения для создания
             пропорциональных фичей в функции definite_value_proportion_features_pipeline.
-        drop_list_definite_value_prop: List['str']: Список признаков для удаления в
+        float_downcast_columns_list: List[str]: Список колонок  тип которых можно
+            безопасно понизить с float64 до float32 без потери информативности
+            из-за округления значений.
+        drop_list_definite_value_prop: List[str]: Список признаков для удаления в
             в функции definite_value_proportion_features_pipeline.
-
         drop_list (List[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
         cast_type_map : dict  Словарь соответствия для приведения типов колонок
-            {имя_колонки('str'): тип('str')}.
+            {имя_колонки(str): тип(str)}.
         logger (Optional[logging.Logger], default=None): Логгер для сообщений.
             Если None (по умолчанию), логирование этапов данной функции будет отключено.
 
@@ -362,7 +368,8 @@ def main_pipeline(
                     partial(
                         definite_value_proportion_features_pipeline,
                         features_dictionary=prop_features_dict,
-                        drop_list=drop_list_definite_value_prop
+                        drop_list=drop_list_definite_value_prop,
+                        float_downcast_columns_list=float_downcast_columns_list
                     )
                 )
             ),
@@ -443,11 +450,12 @@ def run_train_coordinator(
         shuffle: bool,
         eval_metric: str,
         verbose: bool,
-        drop_list_enc_paym_norm_summ_diff: List['str'],
+        drop_list_enc_paym_norm_summ_diff: List[str],
         mean_freq_source_list: List[str],
-        drop_list_mean_value_frequency_feature: List['str'],
+        drop_list_mean_value_frequency_feature: List[str],
         prop_features_dict: Dict[str, Any],
-        drop_list_definite_value_prop: List['str'],
+        float_downcast_columns_list: List[str],
+        drop_list_definite_value_prop: List[str],
         drop_list: List[str],
         classes_metric_list: List[str],
         cast_type_map: Optional[dict],
@@ -479,15 +487,18 @@ def run_train_coordinator(
         shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
         eval_metric (str): Режим расчёта метрик после обучения.
         verbose (bool): Включить прогресс-бары.
-        drop_list_enc_paym_norm_summ_diff: List['str']: Список колонок на удаление в функции
+        drop_list_enc_paym_norm_summ_diff: List[str]: Список колонок на удаление в функции
             enc_paym_norm_group_sum_diff_pipeline.
         mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в функции
             mean_value_frequency_feature_pipeline.
-        drop_list_mean_value_frequency_feature: List['str']: Список колонок на удаление в функции
+        drop_list_mean_value_frequency_feature: List[str]: Список колонок на удаление в функции
             mean_value_frequency_feature_pipeline.
         prop_features_dict (Dict[str, Any]): Словарь, определяющий признаки и значения для создания
             пропорциональных фичей в функции definite_value_proportion_features_pipeline.
-        drop_list_definite_value_prop: List['str']: Список признаков для удаления в
+        float_downcast_columns_list: List[str]: Список колонок  тип которых можно
+            безопасно понизить с float64 до float32 без потери информативности
+            из-за округления значений.
+        drop_list_definite_value_prop: List[str]: Список признаков для удаления в
             в функции definite_value_proportion_features_pipeline.
         drop_list (List[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
         classes_metric_list: (List[str]) Список метрик требующих метки классов для расчета.
@@ -557,6 +568,13 @@ def run_train_coordinator(
         stratify_col=stratify_col
     )
 
+    # После разделения исходного датафрейма удаляем его
+    # для освобождения RAM
+    del raw_data
+    # Вызываем сборщика мусора
+    gc.collect()
+
+
     # Обучаем пайплайн
     if logger is not None:
         logger.info('Fitting the main pipeline')
@@ -574,6 +592,7 @@ def run_train_coordinator(
         mean_freq_source_list=mean_freq_source_list,
         drop_list_mean_value_frequency_feature=drop_list_mean_value_frequency_feature,
         prop_features_dict=prop_features_dict,
+        float_downcast_columns_list=float_downcast_columns_list,
         drop_list_definite_value_prop=drop_list_definite_value_prop,
         drop_list=drop_list,
         cast_type_map=cast_type_map,
@@ -959,6 +978,7 @@ if __name__ == "__main__":
             mean_freq_source_list=MEAN_FREQ_SOURCE_LIST,
             drop_list_mean_value_frequency_feature=DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE,
             prop_features_dict=PROP_FEATURES_DICT,
+            float_downcast_columns_list=FLOAT_DOWNCAST_COLUMNS_LIST,
             drop_list_definite_value_prop=DROP_LIST_DEFINITE_VALUE_PROP,
             drop_list=DROP_LIST,
             classes_metric_list=CLASSES_METRIC_LIST,
