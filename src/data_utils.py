@@ -3,8 +3,11 @@ import glob
 import datetime
 import logging
 import gc
+import ctypes
+import platform
 
 from typing import List, Optional, Dict, Tuple, Union
+import psutil
 
 import numpy as np
 import pandas as pd
@@ -19,17 +22,151 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 
+def ram_statistic(
+        df: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Логирует подробную статистику по использованию памяти и фрагментации DataFrame,
+     включая размеры всех DataFrame и Series, находящихся в памяти процесса.
+
+    Выводит в лог:
+        - Текущий объём оперативной памяти (RSS), занимаемый процессом.
+        - Степень фрагментации DataFrame: количество блоков памяти (chunks).
+        - Список всех DataFrame в памяти:
+            - Размер (shape)
+            - Идентификатор объекта (id)
+            - Занимаемый объём памяти (в мегабайтах)
+        - Список всех Series в памяти:
+            - Имя Series
+            - Идентификатор объекта (id)
+            - Занимаемый объём памяти (в мегабайтах)
+        - RSS процесса после обхода объектов (для динамики).
+
+    Args:
+        df (pd.DataFrame): Анализируемый DataFrame, для которого выводится статистика.
+
+    Returns:
+        pd.DataFrame: Возвращает исходный DataFrame без изменений.
+    """
+
+    # Логируем общий RSS процесса
+    logger.info(f"RSS: {psutil.Process().memory_info().rss / 1024 ** 2:.2f} MB")
+
+    # Логируем степень фрагментации DataFrame: сколько физических блоков занимает в памяти.
+    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+
+    # Логируем все DataFrame в памяти: размер (shape), id и объём занимаемой ими памяти (MB).
+    for obj in gc.get_objects():
+        if isinstance(obj, pd.DataFrame):
+            size_mb = obj.memory_usage(deep=True).sum() / 1024 ** 2
+            logger.info(f"DataFrame in RAM: shape = {obj.shape}, memory = {size_mb:.2f} MB, id = {id(obj)}")
+
+    # Логируем все Series в памяти: имя, id и объём памяти (MB).
+    # Подсчитываем количество Series
+    series_count = 0
+    for obj in gc.get_objects():
+        if isinstance(obj, pd.Series):
+            size_mb = obj.nbytes / 1024 ** 2
+            logger.info(f"Series in RAM: id = {id(obj)}, memory = {size_mb:.2f} MB, name = {obj.name},")
+            series_count += 1
+    logger.info(f"Number of series in RAM: {series_count}")
+
+    # Повторно логируем RSS для оценки после обхода объектов.
+    logger.info(f"RSS: {psutil.Process().memory_info().rss / 1024 ** 2:.2f} MB")
+
+
+def memory_checkpoint(
+        df: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Проводит контрольную точку управления памятью для DataFrame:
+    снимает фрагментацию и гарантирует максимально возможное высвобождение ресурсов процесса
+    при запуске с Docker контейнере с аллокатором glibc (ptmalloc2).
+
+    Алгоритм работы:
+    - Логирует начало работы, чтобы отчётливо видеть точку памяти в логе.
+    - Выводит статистику RAM через функцию ram_statistic.
+    - Организует разрыв ссылок на старые версии DataFrame и Series через паттерн смены имён и удаление копий.
+    - Создаёт новую копию DataFrame, чтобы собрать все данные во внутренних структурах pandas максимально
+        компактно и устранить фрагментацию памяти между столбцами.
+    - Запускает сборщик мусора Python для удаления недостижимых объектов.
+
+    - Выполняет сжатие (освобождение неиспользуемых страниц) кучи (heap) аллокатора для разных операционных систем:
+        - В контейнере на Linux с glibc (ptmalloc2, задаётся Dockerfile, не меняется по ходу работы)
+          вызывается malloc_trim(0): аллокатор glibc возвращает свободные страницы системе,
+          что помогает снизить RSS процесса и избежать “залипаний” памяти.
+        - На macOS используется системный Apple malloc; вызывается malloc_zone_pressure_relief,
+          который подсказывает ОС срочно освободить неиспользуемую память из управления аллокатора.
+        - На Windows процедура освобождения памяти управляется самой ОС и Python.
+    - Ещё раз выводит статистику RAM через функцию ram_statistic.
+
+    Args:
+        df (pd.DataFrame): Исходный DataFrame для контрольной точки памяти.
+
+    Returns:
+        pd.DataFrame: Новый “дефрагментированный” DataFrame, готовый для дальнейшей работы pipelines.
+    """
+
+    logger.info("FUNCTION memory_checkpoint")
+    logger.info('Incoming statistics')
+    ram_statistic(df)
+
+    # Выполняем паттерн разрыва связей
+    df_new = df.copy()
+    del df
+    df = df_new.copy()
+    del df_new
+
+    # Запускаем сборщик мусора для удаления всех недостижимых объектов:
+    # Series, старые DataFrame, временные буферы и т.д.
+    gc.collect()
+
+    # Определяем операционку
+    system = platform.system()
+    if system == "Linux":
+        # Сжатие кучи на glibc (ptmalloc2).
+        # Dockerfile определяет аллокатор — он не меняется динамически,
+        # так что вызов безопасен и предсказуем.
+        try:
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except OSError:
+            # Может возникнуть только в сильно кастомных Linux.
+            pass
+    elif system == "Darwin":
+        # Сжатие кучи на macOS (Apple malloc).
+        # malloc_zone_pressure_relief освобождает неиспользуемые страницы памяти, если таковые имеются.
+        try:
+            malloc = ctypes.CDLL("libc.dylib")
+            malloc.malloc_default_zone.restype = ctypes.c_void_p
+            zone = malloc.malloc_default_zone()
+            malloc.malloc_zone_pressure_relief.restype = ctypes.c_size_t
+            malloc.malloc_zone_pressure_relief(zone, 0)
+        except Exception:
+            # В случае неудачи — ничего не делаем, ошибки игнорируются.
+            pass
+
+    logger.info('Output statistics')
+    ram_statistic(df)
+
+    return df
+
+
 def cast_columns_by_map(
         df: pd.DataFrame,
-        cast_type_map: dict
+        cast_type_map: Dict[str, str]
 ) -> pd.DataFrame:
     """
     Меняет типы DataFrame-колонок в соответствии с заданным словарём.
     Колонки, отсутствующие в cast_type_map или не найденные в df, не изменяются.
 
+    ВАЖНО:
+    При попытке привести колонку с некорректными значениями (NaN, строки, неконвертируемые значения)
+    тип этой колонки останется прежним, выполнение кода не прервётся, а предупреждение будет записано в лог.
+    Все такие ошибочные значения и их обработка делегируются следующему этапу — preprocessing pipeline.
+
     Args:
         df (pd.DataFrame): Исходный DataFrame.
-        cast_type_map (dict): Словарь соответствий {имя_колонки('str'): тип_данных('str')}.
+        cast_type_map (dict): Словарь соответствий {имя_колонки(str): тип_данных(str)}.
 
     Returns:
         pd.DataFrame: DataFrame с приведёнными типами указанных колонок.
