@@ -35,11 +35,10 @@ def ram_statistic(
         - Список всех DataFrame в памяти:
             - Размер (shape)
             - Идентификатор объекта (id)
-            - Занимаемый объём памяти (в мегабайтах)
         - Список всех Series в памяти:
             - Имя Series
             - Идентификатор объекта (id)
-            - Занимаемый объём памяти (в мегабайтах)
+            - Количество Series
         - RSS процесса после обхода объектов (для динамики).
 
     Args:
@@ -55,19 +54,17 @@ def ram_statistic(
     # Логируем степень фрагментации DataFrame: сколько физических блоков занимает в памяти.
     logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
 
-    # Логируем все DataFrame в памяти: размер (shape), id и объём занимаемой ими памяти (MB).
+    # Логируем все DataFrame в памяти: размер (shape), id.
     for obj in gc.get_objects():
         if isinstance(obj, pd.DataFrame):
-            size_mb = obj.memory_usage(deep=True).sum() / 1024 ** 2
-            logger.info(f"DataFrame in RAM: shape = {obj.shape}, memory = {size_mb:.2f} MB, id = {id(obj)}")
+            logger.info(f"DataFrame in RAM: shape = {obj.shape}, id = {id(obj)}")
 
-    # Логируем все Series в памяти: имя, id и объём памяти (MB).
+    # Логируем все Series в памяти: имя, id.
     # Подсчитываем количество Series
     series_count = 0
     for obj in gc.get_objects():
         if isinstance(obj, pd.Series):
-            size_mb = obj.nbytes / 1024 ** 2
-            logger.info(f"Series in RAM: id = {id(obj)}, memory = {size_mb:.2f} MB, name = {obj.name},")
+            logger.info(f"Series in RAM: id = {id(obj)}, name = {obj.name}")
             series_count += 1
     logger.info(f"Number of series in RAM: {series_count}")
 
@@ -86,18 +83,15 @@ def memory_checkpoint(
     Алгоритм работы:
     - Логирует начало работы, чтобы отчётливо видеть точку памяти в логе.
     - Выводит статистику RAM через функцию ram_statistic.
-    - Организует разрыв ссылок на старые версии DataFrame и Series через паттерн смены имён и удаление копий.
+    - Организует разрыв ссылок на старые версии DataFrame и Series через паттерн смены имён и удаления копий.
     - Создаёт новую копию DataFrame, чтобы собрать все данные во внутренних структурах pandas максимально
         компактно и устранить фрагментацию памяти между столбцами.
     - Запускает сборщик мусора Python для удаления недостижимых объектов.
 
-    - Выполняет сжатие (освобождение неиспользуемых страниц) кучи (heap) аллокатора для разных операционных систем:
-        - В контейнере на Linux с glibc (ptmalloc2, задаётся Dockerfile, не меняется по ходу работы)
-          вызывается malloc_trim(0): аллокатор glibc возвращает свободные страницы системе,
-          что помогает снизить RSS процесса и избежать “залипаний” памяти.
-        - На macOS используется системный Apple malloc; вызывается malloc_zone_pressure_relief,
-          который подсказывает ОС срочно освободить неиспользуемую память из управления аллокатора.
-        - На Windows процедура освобождения памяти управляется самой ОС и Python.
+    - Выполняет сжатие  кучи (heap) аллокатора в контейнере
+      на Linux с glibc (ptmalloc2, задаётся Dockerfile, не меняется по ходу работы)
+      вызывается malloc_trim(0): аллокатор glibc возвращает свободные страницы системе,
+      что помогает снизить RSS процесса и избежать “залипаний” памяти.
     - Ещё раз выводит статистику RAM через функцию ram_statistic.
 
     Args:
@@ -117,33 +111,21 @@ def memory_checkpoint(
     df = df_new.copy()
     del df_new
 
+    logger.info("Copying completed")
+
     # Запускаем сборщик мусора для удаления всех недостижимых объектов:
     # Series, старые DataFrame, временные буферы и т.д.
     gc.collect()
 
-    # Определяем операционку
-    system = platform.system()
-    if system == "Linux":
-        # Сжатие кучи на glibc (ptmalloc2).
-        # Dockerfile определяет аллокатор — он не меняется динамически,
-        # так что вызов безопасен и предсказуем.
-        try:
-            ctypes.CDLL("libc.so.6").malloc_trim(0)
-        except OSError:
-            # Может возникнуть только в сильно кастомных Linux.
-            pass
-    elif system == "Darwin":
-        # Сжатие кучи на macOS (Apple malloc).
-        # malloc_zone_pressure_relief освобождает неиспользуемые страницы памяти, если таковые имеются.
-        try:
-            malloc = ctypes.CDLL("libc.dylib")
-            malloc.malloc_default_zone.restype = ctypes.c_void_p
-            zone = malloc.malloc_default_zone()
-            malloc.malloc_zone_pressure_relief.restype = ctypes.c_size_t
-            malloc.malloc_zone_pressure_relief(zone, 0)
-        except Exception:
-            # В случае неудачи — ничего не делаем, ошибки игнорируются.
-            pass
+    logger.info("gc.collect() completed")
+
+    # Сжатие кучи на glibc (ptmalloc2).
+    # Dockerfile определяет аллокатор — он не меняется динамически,
+    # так что вызов безопасен и предсказуем.
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except OSError:
+        pass
 
     logger.info('Output statistics')
     ram_statistic(df)
