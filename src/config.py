@@ -118,7 +118,12 @@ PRE_FEATURES = [
     'enc_paym_23'
 ]
 
-# Словарь для приведения колонок к нужным типам
+
+"""
+Словарь для приведения колонок к нужным типам в препроцессинге 
+(cast_columns_by_map_pipeline функция) и 
+при скачивании данных в функции load_dataset
+"""
 CAST_TYPE_MAP = {
     'id': 'int32',
     'rn': 'int8',
@@ -173,6 +178,54 @@ CAST_TYPE_MAP = {
     'enc_paym_22': 'int8',
     'enc_paym_23': 'int8',
 }
+
+
+"""
+Список колонок получаемых при инжениринге тип которых можно 
+безопасно понизить с float64 до float32 без потери информативности
+из-за округления значений.
+Применяется в definite_value_proportion_features_pipeline
+"""
+FLOAT_DOWNCAST_COLUMNS_LIST = [
+    'pre_util_prop_3',
+    'enc_loans_credit_type_prop_0',
+    'pre_till_pclose_prop_10',
+    'pre_util_prop_6',
+    'pre_loans_outstanding_prop_1',
+    'pre_loans_credit_limit_prop_2',
+    'pre_loans_credit_cost_rate_prop_6',
+    'pre_loans_outstanding_prop_5',
+    'pre_loans_credit_cost_rate_prop_11',
+    'pre_loans_credit_cost_rate_prop_4',
+    'pre_loans_next_pay_summ_prop_5',
+    'pre_since_opened_prop_12',
+    'pre_loans_credit_limit_prop_15',
+    'enc_loans_credit_type_prop_2',
+    'pre_since_opened_repeated_prop',
+    'pre_fterm_prop_7',
+    'enc_paym_0_prop_1',
+    'is_zero_over2limit_prop_1',
+    'pre_since_opened_prop_8',
+    'pre_loans_max_overdue_sum_prop_1',
+    'pre_loans_next_pay_summ_prop_0',
+    'pre_pterm_prop_6',
+    'pre_since_opened_prop_19',
+    'is_zero_loans5_prop_1',
+    'enc_loans_account_holder_type_prop_4',
+    'pre_loans_credit_limit_prop_18',
+    'pre_till_fclose_prop_4',
+    'pre_pterm_prop_3',
+    'is_zero_loans530_prop_1',
+    'enc_loans_credit_status_prop_5',
+    'pre_since_confirmed_prop_4',
+    'pre_fterm_prop_3',
+    'pre_till_fclose_prop_3',
+    'pre_till_fclose_prop_1',
+    'pre_till_pclose_prop_7',
+    'pre_since_confirmed_prop_7',
+    'enc_paym_24_prop_1',
+    'pre_over2limit_prop_17'
+]
 
 """
 Список колонок на удаление в функции
@@ -275,12 +328,17 @@ PROP_FEATURES_DICT = {
     'is_zero_loans90': [1]
 }
 
+
 """
-Список признаков для удаления в функции 
-definite_value_proportion_features_pipeline
-Сформирован вручную
+Список признокав удаляемых из исходного датасета
+функцией drop_columns_pipeline
 """
-DROP_LIST_DEFINITE_VALUE_PROP = [
+
+DROP_LIST = [
+    'pre_since_opened',
+    'is_zero_loans3060_prop_1',
+    'is_zero_loans6090_prop_1',
+    'is_zero_loans90_prop_1',
     'pre_loans_next_pay_summ',
     'enc_paym_0',
     'pre_till_fclose',
@@ -306,88 +364,6 @@ DROP_LIST_DEFINITE_VALUE_PROP = [
     'is_zero_loans90'
 ]
 
-
-
-"""
-Список признокав удаляемых из исходного датасета
-функцией drop_columns_drop_duplicates_pipeline
-"""
-
-
-# Укороченный список после функций
-# rn_max_feature_pipeline
-# enc_paym_norm_group_sum_diff_pipeline
-# mean_value_frequency_feature_pipeline
-# definite_value_proportion_features_pipeline
-DROP_LIST = [
-    'pre_since_opened',
-    'is_zero_loans3060_prop_1',
-    'is_zero_loans6090_prop_1',
-    'is_zero_loans90_prop_1'
-]
-
-# Старый список со всеми фичами УДАЛИЬТЬ!!!
-# DROP_LIST = [
-#     'rn',
-#     'pre_since_opened',
-#     'pre_since_confirmed',
-#     'pre_pterm',
-#     'pre_fterm',
-#     'pre_till_pclose',
-#     'pre_till_fclose',
-#     'pre_loans_credit_limit',
-#     'pre_loans_next_pay_summ',
-#     'pre_loans_outstanding',
-#     'pre_loans_max_overdue_sum',
-#     'pre_loans_credit_cost_rate',
-#     'pre_loans5',
-#     'pre_loans530',
-#     'is_zero_loans5',
-#     'is_zero_loans530',
-#     'pre_util',
-#     'pre_over2limit',
-#     'is_zero_over2limit',
-#     'enc_paym_0',
-#     'enc_paym_1',
-#     'enc_paym_2',
-#     'enc_paym_8',
-#     'enc_paym_9',
-#     'enc_paym_10',
-#     'enc_paym_24',
-#     'enc_loans_account_holder_type',
-#     'enc_loans_credit_status',
-#     'enc_loans_credit_type',
-#     'enc_loans_account_cur',
-#     'is_zero_loans3060',
-#     'is_zero_loans6090',
-#     'is_zero_loans90',
-#     'enc_paym_3',
-#     'enc_paym_4',
-#     'enc_paym_5',
-#     'enc_paym_6',
-#     'enc_paym_7',
-#     'enc_paym_11',
-#     'enc_paym_12',
-#     'enc_paym_13',
-#     'enc_paym_14',
-#     'enc_paym_15',
-#     'enc_paym_16',
-#     'enc_paym_17',
-#     'enc_paym_18',
-#     'enc_paym_19',
-#     'enc_paym_20',
-#     'enc_paym_21',
-#     'enc_paym_22',
-#     'enc_paym_23',
-#     'enc_paym_avg_1_all',
-#     'enc_paym_avg_2_all',
-#     'enc_paym_avg_0_this_year',
-#     'enc_paym_avg_1_this_year',
-#     'enc_paym_avg_0_last_year',
-#     'is_zero_loans3060_prop_1',
-#     'is_zero_loans6090_prop_1',
-#     'is_zero_loans90_prop_1'
-# ]
 
 # Константы классификатора
 
