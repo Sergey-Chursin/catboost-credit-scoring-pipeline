@@ -1,15 +1,18 @@
 import logging
 from typing import Dict
-import gc
+
 
 import pandas as pd
 
 from sklearn.base import BaseEstimator, TransformerMixin
 
+from memory_utils import rss_process_statistic, cgroup_memory_statistic
+
 """
 Функции предобработки датасета.
 Преобразование типов признаков в числовые.
-Преобразование типов признаков к целочисленному виду.
+Преобразование типов признаков к целочисленному виду разных форматов
+согласно заданному словарю для оптимизации RAM.
 Удаление дубликатов.
 Заполнение пропусков медианами.
 Из-за большого размера датасета вычисление медиан признаков занимает
@@ -30,21 +33,22 @@ from sklearn.base import BaseEstimator, TransformerMixin
 
 Используется так:
     preprocessing_pipe = Pipeline([
-        ('to_numeric', FunctionTransformer(convert_all_to_numeric_pipeline)),
+        ('to_numeric', FunctionTransformer(convert_all_to_numeric_preprocessing)),
         ('imputer', imputer),
-        ('to_int', FunctionTransformer(cast_columns_by_map_pipeline)),
-        ('drop_duplicates', FunctionTransformer(drop_duplicates_pipeline)),
+        ('to_int', FunctionTransformer(cast_columns_by_map_preprocessing)),
+        ('drop_duplicates', FunctionTransformer(drop_duplicates_preprocessing)),
     ])
 """
 
 """
 Создаём локальный логгер для этого модуля
 Он наследует настройки от root logger
-импортирующего файла (pipeline.py)
+файла (pipeline.py)
 """
 logger = logging.getLogger(__name__)
 
-def convert_all_to_numeric_pipeline(
+
+def convert_all_to_numeric_preprocessing(
         df: pd.DataFrame
 ) -> pd.DataFrame:
     """
@@ -58,19 +62,27 @@ def convert_all_to_numeric_pipeline(
         pandas.DataFrame : Копия исходного DataFrame
         где все колонки приведены к числовому типу.
     """
-    logger.info('FUNCTION convert_all_to_numeric_pipeline')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+    logger.info('FUNCTION convert_all_to_numeric_preprocessing')
 
-    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
-
+    logger.debug('Incoming statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     # errors='coerce' при невозможности преобразования заменит на NaN.
-    return df.apply(lambda col: pd.to_numeric(col, errors='coerce'))
+    df = df.apply(lambda col: pd.to_numeric(col, errors='coerce'))
 
-def cast_columns_by_map_pipeline(
+    logger.debug('Output statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
+
+    return  df
+
+
+def cast_columns_by_map_preprocessing(
         df: pd.DataFrame,
         cast_type_map: Dict[str, str]
 ) -> pd.DataFrame:
@@ -83,25 +95,14 @@ def cast_columns_by_map_pipeline(
     Returns:
         pd.DataFrame : DataFrame, где указанные колонки приведены к нужному типу.
     """
-    logger.info('FUNCTION cast_columns_by_map_pipeline')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+    logger.info('FUNCTION cast_columns_by_map_preprocessing')
 
+    logger.debug('Incoming statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
-
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
-
-    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
 
     # Согласно логике preprocessing_pipe в датасете не должно остаться NaN,
     # но всё же введём проверку на всякий случай.
@@ -112,53 +113,17 @@ def cast_columns_by_map_pipeline(
     for col, dtype in cast_type_map.items():
         if col in df.columns:
             df[col] = df[col].astype(dtype, copy=False)
+
+    logger.debug('Output statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
+
     return df
 
 
-# def convert_all_to_int_pipeline(
-#         df: pd.DataFrame
-# ) -> pd.DataFrame:
-#     """
-#     Преобразует все колонки DataFrame к целочисленному типу.
-#
-#     Args:
-#         df : Исходный DataFrame с числовыми значениями.
-#
-#     Returns:
-#         pd.DataFrame : DataFrame, где все колонки приведены к типу int.
-#     """
-#     logger.info('FUNCTION convert_all_to_int_pipeline')
-#
-#
-#     # Согласно логике preprocessing_pipe в датасете не должно остаться NaN,
-#     # но всё же введём проверку на всякий случай.
-#
-#     if df.isnull().any().any():
-#         raise ValueError(
-#             "Found NaN values in DataFrame. All missing values must be imputed before converting to int."
-#         )
-#
-#     return df.astype(int)
-
-
-# def drop_duplicates_pipeline(
-#         df: pd.DataFrame
-# ) -> pd.DataFrame:
-#     """
-#     Удаляет дубликаты строк из DataFrame.
-#
-#     Args:
-#         df : Исходный DataFrame.
-#
-#     Returns:
-#         pd.DataFrame : DataFrame без дублирующихся строк.
-#     """
-#
-#     logger.info('FUNCTION drop_duplicates_pipeline')
-#
-#     return df.drop_duplicates()
-
-def drop_duplicates_pipeline(
+def drop_duplicates_preprocessing(
         df: pd.DataFrame
 ) -> pd.DataFrame:
     """
@@ -172,34 +137,40 @@ def drop_duplicates_pipeline(
             Если дубликаты найдены и удалены — новый объект.
             Если дубликаты не найдены — возвращается исходный DataFrame без изменений.
     """
-    logger.info("FUNCTION drop_duplicates_pipeline")
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+    logger.info("FUNCTION drop_duplicates_preprocessing")
 
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    # df = df.copy()
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
-
-    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
-
+    logger.debug('Incoming statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     # Подсчитываем количество дублирующихся строк
     n_dupes = df.duplicated().sum()
     if n_dupes > 0:
         # Если дубликаты есть — выводим предупреждение и удаляем их
-        logger.info(f"{n_dupes} duplicate records found! Data is not unique.")
-        return df.drop_duplicates(ignore_index=True)
+        logger.info(f"{n_dupes} duplicate records found! Removing duplicates.")
+
+        df = df.drop_duplicates(ignore_index=True)
+
+        logger.debug('Output statistics')
+        # Проверим RSS процесса и объекты в RAM
+        rss_process_statistic(df)
+        # Проверим потребление памяти по cgroup
+        cgroup_memory_statistic()
+
+        return  df
+
     else:
         # Если дубликатов нет — уведомляем и возвращаем исходный DataFrame
         logger.info("No duplicates found, no cleanup operation required.")
+
+        logger.debug('Output statistics')
+        # Проверим RSS процесса и объекты в RAM
+        rss_process_statistic(df)
+        # Проверим потребление памяти по cgroup
+        cgroup_memory_statistic()
+
         return df
 
 
@@ -234,6 +205,8 @@ class SampleMedianImputer(BaseEstimator, TransformerMixin):
     def transform(self, X):
         # Заполняем пропуски медианами
         return X.fillna(self.medians_)
+
+
 
 # Добавим защитный блок main для тестов
 if __name__ == "__main__":
