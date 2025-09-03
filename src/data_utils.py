@@ -3,16 +3,15 @@ import glob
 import datetime
 import logging
 import gc
-import ctypes
-import platform
 
 from typing import List, Optional, Dict, Tuple, Union
-import psutil
+
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+
 
 """
 Создаём локальный логгер для этого модуля
@@ -20,118 +19,6 @@ from tqdm import tqdm
 импортирующего файла (pipeline.py)
 """
 logger = logging.getLogger(__name__)
-
-
-def ram_statistic(
-        df: pd.DataFrame
-) -> pd.DataFrame:
-    """
-    Логирует подробную статистику по использованию памяти и фрагментации DataFrame,
-     включая размеры всех DataFrame и Series, находящихся в памяти процесса.
-
-    Выводит в лог:
-        - Текущий объём оперативной памяти (RSS), занимаемый процессом.
-        - Степень фрагментации DataFrame: количество блоков памяти (chunks).
-        - Список всех DataFrame в памяти:
-            - Размер (shape)
-            - Идентификатор объекта (id)
-        - Список всех Series в памяти:
-            - Имя Series
-            - Идентификатор объекта (id)
-            - Количество Series
-        - RSS процесса после обхода объектов (для динамики).
-
-    Args:
-        df (pd.DataFrame): Анализируемый DataFrame, для которого выводится статистика.
-
-    Returns:
-        pd.DataFrame: Возвращает исходный DataFrame без изменений.
-    """
-
-    # Логируем общий RSS процесса
-    logger.info(f"RSS: {psutil.Process().memory_info().rss / 1024 ** 2:.2f} MB")
-
-    # Логируем степень фрагментации DataFrame: сколько физических блоков занимает в памяти.
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
-
-    # Логируем все DataFrame в памяти: размер (shape), id.
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f"DataFrame in RAM: shape = {obj.shape}, id = {id(obj)}")
-
-    # Логируем все Series в памяти: имя, id.
-    # Подсчитываем количество Series
-    series_count = 0
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.Series):
-            logger.info(f"Series in RAM: id = {id(obj)}, name = {obj.name}")
-            series_count += 1
-    logger.info(f"Number of series in RAM: {series_count}")
-
-    # Повторно логируем RSS для оценки после обхода объектов.
-    logger.info(f"RSS: {psutil.Process().memory_info().rss / 1024 ** 2:.2f} MB")
-
-
-def memory_checkpoint(
-        df: pd.DataFrame
-) -> pd.DataFrame:
-    """
-    Проводит контрольную точку управления памятью для DataFrame:
-    снимает фрагментацию и гарантирует максимально возможное высвобождение ресурсов процесса
-    при запуске с Docker контейнере с аллокатором glibc (ptmalloc2).
-
-    Алгоритм работы:
-    - Логирует начало работы, чтобы отчётливо видеть точку памяти в логе.
-    - Выводит статистику RAM через функцию ram_statistic.
-    - Организует разрыв ссылок на старые версии DataFrame и Series через паттерн смены имён и удаления копий.
-    - Создаёт новую копию DataFrame, чтобы собрать все данные во внутренних структурах pandas максимально
-        компактно и устранить фрагментацию памяти между столбцами.
-    - Запускает сборщик мусора Python для удаления недостижимых объектов.
-
-    - Выполняет сжатие  кучи (heap) аллокатора в контейнере
-      на Linux с glibc (ptmalloc2, задаётся Dockerfile, не меняется по ходу работы)
-      вызывается malloc_trim(0): аллокатор glibc возвращает свободные страницы системе,
-      что помогает снизить RSS процесса и избежать “залипаний” памяти.
-    - Ещё раз выводит статистику RAM через функцию ram_statistic.
-
-    Args:
-        df (pd.DataFrame): Исходный DataFrame для контрольной точки памяти.
-
-    Returns:
-        pd.DataFrame: Новый “дефрагментированный” DataFrame, готовый для дальнейшей работы pipelines.
-    """
-
-    logger.info("FUNCTION memory_checkpoint")
-    logger.info('Incoming statistics')
-    ram_statistic(df)
-
-    # Выполняем паттерн разрыва связей
-    df_new = df.copy()
-    del df
-    df = df_new.copy()
-    del df_new
-
-    logger.info("Copying completed")
-
-    # Запускаем сборщик мусора для удаления всех недостижимых объектов:
-    # Series, старые DataFrame, временные буферы и т.д.
-    gc.collect()
-
-    logger.info("gc.collect() completed")
-
-    # Сжатие кучи на glibc (ptmalloc2).
-    # Dockerfile определяет аллокатор — он не меняется динамически,
-    # так что вызов безопасен и предсказуем.
-    try:
-        ctypes.CDLL("libc.so.6").malloc_trim(0)
-    except OSError:
-        pass
-
-    logger.info('Output statistics')
-    ram_statistic(df)
-
-    return df
-
 
 def cast_columns_by_map(
         df: pd.DataFrame,
@@ -338,6 +225,7 @@ def load_dataset(
 
     return result
 
+
 def split_dataset_by_target(
         dataset: pd.DataFrame,
         path_to_target: str,
@@ -398,6 +286,7 @@ def split_dataset_by_target(
         'y_test': y_test
     }
 
+
 def split_target_only(
         path_to_target: str,
         train_size: float,
@@ -439,6 +328,7 @@ def split_target_only(
         'y_train': y_train[stratify_col],
         'y_test': y_test[stratify_col]
     }
+
 
 def make_file_path(
         output_type: str,
@@ -509,7 +399,6 @@ def check_data_folder_and_count_files(
     logger.info(f'Count of files in data folder: {files_count}')
 
     return file_paths, files_count
-
 
 
 def save_predictions_with_id(
