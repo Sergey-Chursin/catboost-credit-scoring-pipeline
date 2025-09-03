@@ -5,10 +5,16 @@ import gc
 import numpy as np
 import pandas as pd
 
+from memory_utils import (
+    rss_process_statistic,
+    heap_trim,
+    cgroup_memory_statistic
+)
+
 """
 Создаём локальный логгер для этого модуля
 Он наследует настройки от root logger
-импортирующего файла (pipeline.py)
+ файла (pipeline.py)
 """
 logger = logging.getLogger(__name__)
 
@@ -29,22 +35,12 @@ def rn_max_feature_pipeline(
         pandas.DataFrame : Копия исходного DataFrame с добавленной колонкой 'rn_max'.
     """
     logger.info('FUNCTION rn_max_feature_pipeline')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
 
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
-
-    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
+    logger.debug('Incoming statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     # Для каждой строки определяем максимальное значение 'rn' среди всех строк с тем же 'id'
     #Метод transform('max') возвращает Series длины исходного DataFrame, где для каждой строки
@@ -54,6 +50,13 @@ def rn_max_feature_pipeline(
 
     # Удаляем уже не нужный столбец для экономии памяти
     df = df.drop('rn', axis=1)
+
+
+    logger.debug('Output statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     return df
 
@@ -77,36 +80,25 @@ def enc_paym_transcoding_pipeline(
     pandas.DataFrame : Копия DataFrame с перекодированными признаками.
     """
     logger.info('FUNCTION enc_paym_transcoding_pipeline ')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
 
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
-
-    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
-
+    logger.debug('Incoming statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     # Список колонок для перекодировки
     columns = [col for col in df.columns if col.startswith('enc_paym_')]
 
-    # for col in columns:
-        # Проверяем, есть ли значение 4 в колонке
-        # if 4 in df[col].unique():
-        #     # Заменяем значения согласно маппингу
-        #     df.loc[:, col] = df[col].replace({1: 0, 2: 1, 3: 2, 4: 3})
-
     # Заменяем значения в любом случае, а не только если есть 4
     for col in columns:
         df.loc[:, col] = df[col].replace({1: 0, 2: 1, 3: 2, 4: 3})
+
+    logger.debug('Output statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     return df
 
@@ -136,28 +128,22 @@ def enc_paym_norm_group_sum_diff_pipeline(
     Returns:
         pandas.DataFrame :  Копия DataFrame с добавленными итоговыми признаками
         разницы между средними количествами статусов платежей по различным периодам.
+
+    ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
+    (который ожидает функцию только с одним аргументом — DataFrame).
+     Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
+      чтобы зафиксировать дополнительные параметры заранее.
     """
 
     logger.info('FUNCTION enc_paym_norm_group_sum_diff_pipeline')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
 
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
+    logger.debug('Incoming statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
-    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
-
-
-    logger.info('New features')
+    logger.info('New temporary features')
 
     # Создаём временный датафрейм со столбцом id из df
     df_buff = pd.DataFrame(data=df['id'], columns=['id'])
@@ -244,11 +230,6 @@ def enc_paym_norm_group_sum_diff_pipeline(
     del df_buff
     gc.collect()
 
-    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
-
     # Создаём фичи разницы
     df['enc_paym_avg_0_1_this_year_diff'] = (
             df['enc_paym_avg_0_this_year'] -
@@ -273,21 +254,15 @@ enc_paym_avg_0_years_diff
 """
                 )
 
-    # Выведем размер датафрейма и типы колонок
-    logger.info(f"DataFrame shape: {df.shape}")
-    for col, dtype in df.dtypes.items():
-        logger.info(f"{col}: {dtype}")
-
-
     # Удаляем уже не нужные колонки
     df = df.drop(drop_list, axis=1)
-    gc.collect()
     logger.info(f"DataFrame shape after drop(): {df.shape}")
 
-    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
+    logger.debug('Output statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     return df
 
@@ -322,23 +297,12 @@ def mean_value_frequency_feature_pipeline(
       чтобы зафиксировать дополнительные параметры заранее.
     """
     logger.info('FUNCTION mean_value_frequency_feature_pipeline')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
 
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
-
-    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
-
+    logger.debug('Incoming statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     logger.info('New features')
 
@@ -360,55 +324,20 @@ def mean_value_frequency_feature_pipeline(
         """
         df[new_col] = freq_series.groupby(df['id']).transform('sum') / df['rn_max']
 
-        # Удаляем временные переменные, так как из за них
-        # в RAM залипает копия датафрейма
+        # Удаляем временные переменные для экономии памяти
         del freq_series, bin_freq
         gc.collect()
 
-    # Выведем размер датафрейма и типы колонок
-    logger.info(f"DataFrame shape: {df.shape}")
-    # for col, dtype in df.dtypes.items():
-    #     logger.info(f"{col}: {dtype}")
-
-    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
-
-
-    # ИЩЕТ ССЫЛКИ НА ОБЪЕКТ
-    def debug_df_refs(df, tag=""):
-        df_id = id(df)
-        logger.info(f"{tag}: DataFrame id={df_id}, shape={df.shape}")
-        referrers = gc.get_referrers(df)
-        logger.info(f"{tag}: Number of referrers: {len(referrers)}")
-        for i, ref in enumerate(referrers):
-            logger.info(f"{tag}: Referrer {i}: {type(ref)} | Preview: {str(ref)[:500]}")
-
-
     logger.info("Drop columns")
     # Удаляем уже не нужные колонки
-    df_new = df.drop(drop_list, axis=1)
+    df = df.drop(drop_list, axis=1)
+    logger.info(f"DataFrame shape after drop(): {df.shape}")
 
-
-    del df
-    df = df_new.copy()
-    del df_new
-
-    gc.collect()
-
-
-    debug_df_refs(df, "after drop")
-
-    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
-
-    # Выведем размер датафрейма и типы колонок
-    logger.info(f"DataFrame shape: {df.shape}")
-    for col, dtype in df.dtypes.items():
-        logger.info(f"{col}: {dtype}")
+    logger.debug('Output statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     return df
 
@@ -416,7 +345,6 @@ def mean_value_frequency_feature_pipeline(
 def definite_value_proportion_features_pipeline(
         df: pd.DataFrame,
         features_dictionary: Dict[str, Any],
-        drop_list: List[str],
         float_downcast_columns_list: List[str]
 ) -> pd.DataFrame:
     """
@@ -433,7 +361,6 @@ def definite_value_proportion_features_pipeline(
         df : Исходный DataFrame, содержащий необходимые признаки и колонку 'rn_max'.
         features_dictionary: Dict[str, Any] - Словарь где ключами являются названия колонок,
             а значениями уникальные значения колонки которые требуется обработать.
-        drop_list: List[str] - Список уже не нужных признаков для удаления
         float_downcast_columns_list: List[str]: Список колонок  тип которых можно
             безопасно понизить с float64 до float32 без потери информативности
             из-за округления значений.
@@ -447,23 +374,13 @@ def definite_value_proportion_features_pipeline(
       чтобы зафиксировать дополнительные параметры заранее.
     """
     logger.info('FUNCTION definite_value_proportion_features_pipeline')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
 
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
-
-    # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-    for obj in gc.get_objects():
-        if isinstance(obj, pd.DataFrame):
-            logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
-
+    logger.debug('Incoming statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
+    
     """
     Создадим словарь где для каждого признака перечислены значения,
     по которым считаем долю.
@@ -471,7 +388,15 @@ def definite_value_proportion_features_pipeline(
 
     # Итерируем по ключам
     for col in features_dictionary.keys():
+
+        logger.debug('BEFORE column statistics')
+        # Проверим RSS процесса и объекты в RAM
+        rss_process_statistic(df)
+        # Проверим потребление памяти по cgroup
+        cgroup_memory_statistic()
+
         logger.info('Original feature %s', col)
+
         logger.info('New features')
 
         # Итерируем по значениям
@@ -494,10 +419,6 @@ def definite_value_proportion_features_pipeline(
             # Выведем  тип новой колоноки
             logger.info(f"New column type is: {df[new_col].dtype}")
 
-            # Выводим вес датафрейма в RAM в мегабайтах
-            mem_mb = df.memory_usage(deep=True).sum() / 1024 ** 2
-            logging.info(f"Before type changing DataFrame size in memory: {mem_mb:.2f} MB")
-
             # По условию меняем тип колонки с float64 на float32
             if new_col in float_downcast_columns_list:
                 df[new_col] = df[new_col].astype('float32')
@@ -506,67 +427,20 @@ def definite_value_proportion_features_pipeline(
             del mask
             gc.collect()
 
-            # Выведем размер  тип новой колоноки
+            # Выведем тип новой колоноки
             logger.info(f"After changing New column type is: {df[new_col].dtype}")
 
             # Выведем размер датафрейма
-            logger.info(f"DataFrame shape: {df.shape}")
+            logger.info(f"With New column DataFrame shape: {df.shape}")
 
-            # Выводим вес датафрейма в RAM в мегабайтах
-            mem_mb = df.memory_usage(deep=True).sum() / 1024 ** 2
-            logging.info(f"After type changing DataFrame size in memory: {mem_mb:.2f} MB")
+        # Пробуем оптимизировать RSS
+        heap_trim()
 
-            # Выодим фрагментацию датафрейма
-            logger.info(
-                f"DataFrame fragmentation BEFORE copy(): number of memory blocks = {df._mgr.nblocks}"
-            )
-            # Дефрагментируем датафрейм
-            logger.info("Defragmentation")
-            df = df.copy()
-            gc.collect()
-
-            # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-            for obj in gc.get_objects():
-                if isinstance(obj, pd.DataFrame):
-                    logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
-
-            # Выодим фрагментацию датафрейма
-            logger.info(
-                f"DataFrame fragmentation AFTER copy(): number of memory blocks = {df._mgr.nblocks}"
-            )
-
-            # Выводим вес датафрейма в RAM в мегабайтах
-            mem_mb = df.memory_usage(deep=True).sum() / 1024 ** 2
-            logging.info(f"DataFrame size in memory AFTER copy(): {mem_mb:.2f} MB")
-
-            # ПРОВЕРКА ДАТАФРЕЙМОВ В ПАМЯТИ RAM
-            for obj in gc.get_objects():
-                if isinstance(obj, pd.DataFrame):
-                    logger.info(f'DF in RAM: {obj.shape}    {id(obj)}')
-
-            # ПРОВЕРКА SIRIESES В ПАМЯТИ RAM
-            for obj in gc.get_objects():
-                if isinstance(obj, pd.Series):
-                    logger.info(f"Series in memory: {obj.name}  {id(obj)}")
-
-
-        # Выводим вес датафрейма в RAM в мегабайтах
-        mem_mb = df.memory_usage(deep=True).sum() / 1024 ** 2
-        logging.info(f"DataFrame size in memory BEFORE dropping old col: {mem_mb:.2f} MB")
-
-        if col in drop_list:
-            df = df.drop(col, axis=1)
-
-            # Выводим вес датафрейма в RAM в мегабайтах
-            mem_mb = df.memory_usage(deep=True).sum() / 1024 ** 2
-            logging.info(f"DataFrame size in memory AFTER dropping old col: {mem_mb:.2f} MB")
-
-            gc.collect()
-
-    # Выведем размер датафрейма и типы колонок
-    logger.info(f"DataFrame shape: {df.shape}")
-    for col, dtype in df.dtypes.items():
-        logger.info(f"{col}: {dtype}")
+    logger.debug('Output statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     return df
 
@@ -585,23 +459,12 @@ def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
         pandas.DataFrame : Копия DataFrame с добавленным признаком 'is_zero_sum_prop_1'.
     """
     logger.info('FUNCTION from_is_zero_prop_1_create_sum_prop_1_feature_pipeline')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
 
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
-
-    # Выведем размер датафрейма и типы колонок
-    logger.info(f"DataFrame shape: {df.shape}")
-    for col, dtype in df.dtypes.items():
-        logger.info(f"{col}: {dtype}")
-
+    logger.debug('Incoming statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     columns = [
         'is_zero_loans5_prop_1',
@@ -613,12 +476,14 @@ def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
 
     df['is_zero_sum_prop_1'] = df[columns].sum(axis=1) / 5
 
-    # Выведем размер датафрейма и типы колонок
-    logger.info(f"DataFrame shape: {df.shape}")
-    for col, dtype in df.dtypes.items():
-        logger.info(f"{col}: {dtype}")
+    logger.debug('Output statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     return df
+
 
 def pre_since_opened_sum_mean_repeated_pipeline(
         df: pd.DataFrame
@@ -644,19 +509,13 @@ def pre_since_opened_sum_mean_repeated_pipeline(
         добавленным признаком 'pre_since_opened_repeated_prop'.
     """
     logger.info('FUNCTION pre_since_opened_sum_mean_repeated_pipeline')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
 
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
-
-
+    logger.debug('Incoming statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
+    
     # Считаем количество каждого значения 'pre_since_opened' для каждого 'id'
     counts = df.groupby(['id', 'pre_since_opened']).size()
 
@@ -675,6 +534,15 @@ def pre_since_opened_sum_mean_repeated_pipeline(
     # Добавляем новый столбец: для каждого 'id' записываем рассчитанную сумму повторов
     df['pre_since_opened_repeated_prop'] = df['id'].map(all_sum_repeated)
 
+    # Удаляем временные переменные
+    del (
+        counts,
+        repeated_pre_since_opened,
+        sum_repeated,
+        all_sum_repeated
+    )
+    gc.collect()
+
     # Нормируем сумму повторов на количество записей 'rn_max' для каждого 'id'
     df['pre_since_opened_repeated_prop'] = (
             df['pre_since_opened_repeated_prop'] / df['rn_max']
@@ -684,91 +552,115 @@ def pre_since_opened_sum_mean_repeated_pipeline(
     df['pre_since_opened_repeated_prop'] = (
         df['pre_since_opened_repeated_prop'].astype('float32')
     )
-    # Выведем размер датафрейма и типы колонок
-    logger.info(f"DataFrame shape: {df.shape}")
-    for col, dtype in df.dtypes.items():
-        logger.info(f"{col}: {dtype}")
+
+    logger.debug('Output statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     return df
 
 
-def drop_columns_drop_duplicates_pipeline(
+def drop_columns_pipeline(
         df: pd.DataFrame,
         columns_list: List[str]
 ) -> pd.DataFrame:
     """
-    Удаляет исходные и временные признаки из DataFrame,
-    а также удаляет дубликаты по столбцу 'id', оставляя только первую запись.
-    После удаления дубликатов столбец 'id' также удаляется.
+    Удаляет исходные и временные признаки из DataFrame.
 
     Args:
         df: (pd.DataFrame) Исходный DataFrame.
         columns_list: List[str] Список удаляемых колонок.
 
     Returns:
-        pd.DataFrame : Копия DataFrame без указанных столбцов и дубликатов по 'id'.
+        pd.DataFrame : Копия DataFrame без указанных столбцов
 
     ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
     (который ожидает функцию только с одним аргументом — DataFrame).
      Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
       чтобы зафиксировать дополнительные параметры заранее.
     """
+    logger.info('FUNCTION drop_columns_pipeline')
 
-    logger.info('FUNCTION drop_columns_drop_duplicates_pipeline')
-    logger.info(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+    logger.debug('Incoming statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
-    # При передачи между функциями pipeline сильно фрагментирует датафрейм (разные memory blocks)
-    # что существенно замедляет дальнейшие операции из-за внутренней структуры pandas.
-    # Обычная копия (df.copy()) дефрагментирует объект.
-    df = df.copy()
-    logger.info(
-        f"DataFrame fragmentation after copy(): number of memory blocks = {df._mgr.nblocks}"
-    )
-    # Для экономии памяти сборщик мусора сразу после копирования освободит ресурсы
-    gc.collect()
-
-
-    df = df.drop(columns_list, axis=1)
-    # Явно вызываем сборщик мусора для освобождения памяти,
-    # используемой предыдущими объектами DataFrame
-    gc.collect()
-
-    # Посчитаем и выведем в лог количество дубликатов по id
-    n_dupes = df.duplicated().sum()
-    logger.info(f" {n_dupes} duplicate records found")
-
-    # Удаляем дубликаты по столбцу 'id', оставляя первую запись
-    # и сразу сбрасываем индекс это экономит немного памяти.
-    df = df.drop_duplicates(subset=['id'], keep='first', ignore_index=True)
-
-    # Явно вызываем сборщик мусора для освобождения памяти,
-    # используемой предыдущими объектами DataFrame
-    gc.collect()
-
-    # Выведем размер датафрейма и типы колонок
+    # Выведем размер датафрейма
     logger.info(f"DataFrame shape: {df.shape}")
-    for col, dtype in df.dtypes.items():
-        logger.info(f"{col}: {dtype}")
+    # Сбрасываем ненужные признаки
+    df = df.drop(columns_list, axis=1)
+    logger.debug("Columns dropped successfully")
+    # Выведем размер датафрейма
+    logger.info(f"After dropping columns DataFrame shape : {df.shape}")
+
+    logger.debug('Output statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
+
+    return  df
+
+
+def drop_duplicates_pipeline(
+        df: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Удаляет  дубликаты по столбцу 'id', оставляя только первую запись.
+    После удаления дубликатов столбец 'id' также удаляется.
+
+    Args:
+        df: (pd.DataFrame) Исходный DataFrame.
+
+    Returns:
+        pd.DataFrame : Копия DataFrame без дубликатов по 'id' и столбца 'id'.
+    """
+
+    logger.info('FUNCTION drop_duplicates_pipeline')
+
+    logger.debug('Incoming statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
+
+    # Выведем размер датафрейма
+    logger.info(f"DataFrame shape: {df.shape}")
+
+    # Удаляем дубликаты через группировку - оставляем первое появление каждого 'id'
+    # Потребляет меньше RAM чем стандартный drop_duplicates()
+    df = df.groupby('id', as_index=False).first()
+
+    logger.debug("Duplicates dropped successfully")
+    # Выведем размер датафрейма
+    logger.info(f"DataFrame shape after dropping duplicates: {df.shape}")
 
     # Удаляем столбец 'id', так как он больше не нужен
     df = df.drop('id', axis=1)
-
-    # Явно вызываем сборщик мусора для освобождения памяти,
-    # используемой предыдущими объектами DataFrame
-    gc.collect()
+    logger.debug("id dropped successfully")
 
     # Выведем размер датафрейма и типы колонок
-    logger.info(f"DataFrame shape: {df.shape}")
-    for col, dtype in df.dtypes.items():
-        logger.info(f"{col}: {dtype}")
+    logger.info(f"DataFrame shape after dropping ID: {df.shape}")
+
+    logger.debug('Output statistics')
+    # Проверим RSS процесса и объекты в RAM
+    rss_process_statistic(df)
+    # Проверим потребление памяти по cgroup
+    cgroup_memory_statistic()
 
     return df
+
+
 
 # Добавим защитный блок main для тестов
 if __name__ == "__main__":
     # Настройка логгера только для standalone запуска
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(message)s')
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(message)s')
 
     pass
