@@ -1,4 +1,3 @@
-import os
 import logging
 import argparse
 import pickle
@@ -39,7 +38,6 @@ from config import (
     PREDICT_FILE_EXTENSION,
     CAST_TYPE_MAP,
     FILE_EXTENSION,
-    DROP_LIST_DEFINITE_VALUE_PROP,
     DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF,
     DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE,
     FLOAT_DOWNCAST_COLUMNS_LIST
@@ -50,8 +48,10 @@ from data_utils import (
     split_dataset_by_target,
     check_data_folder_and_count_files,
     make_file_path,
-    save_predictions_with_id,
+    save_predictions_with_id
 )
+
+from memory_utils import memory_checkpoint
 
 from evaluate_metrics import compute_and_log_metrics
 
@@ -59,9 +59,9 @@ from log_config import setup_logging
 
 from preprocessing import (
     SampleMedianImputer,
-    convert_all_to_numeric_pipeline,
-    cast_columns_by_map_pipeline,
-    drop_duplicates_pipeline,
+    convert_all_to_numeric_preprocessing,
+    cast_columns_by_map_preprocessing,
+    drop_duplicates_preprocessing
 )
 
 from feature_engineering import (
@@ -72,7 +72,8 @@ from feature_engineering import (
     mean_value_frequency_feature_pipeline,
     enc_paym_norm_group_sum_diff_pipeline,
     pre_since_opened_sum_mean_repeated_pipeline,
-    drop_columns_drop_duplicates_pipeline,
+    drop_columns_pipeline,
+    drop_duplicates_pipeline
 )
 
 from classifier import CatBoostEnsembleClassifier
@@ -84,46 +85,51 @@ from classifier import CatBoostEnsembleClassifier
 --help - Вывод help-сообщения
 
 -----------------
---log-level info   для вывода логов;
------------------
---mode train        для загрузки тренировочного датасета, 
-                    разделения его на train/test,
-                    обучения пайплайна,
-                    сохранения пайплайна.
-                                   
---mode test         для загрузки тренировочного датасета, 
-                    разделения его на train/test,
-                    загрузки пайплайна,
-                    получения и сохранения предикта. 
-                                  
---mode inference    для загрузки  датасета из указанной папки
-                    (по умолчанию это учебные данные),
-                    получения и сохранения предикта.
-                    Это имитирует получение предикта 
-                    на новых данных.
-------------------                 
---output proba      для режимов test/inference 
-                    получение предикта вероятностей классов.
-                    
---output predict    для режимов test/inference 
-                    получение предикта меток классов.
-------------------
-                  
---data-path         путь к данным для inference,
-                    по умолчанию это путь
-                    к тренировочному датасету.   
-------------------                  
---eval-metrics off нет вывода метрик на тестовой выборке. 
+--log-level info     рабочие логи: старт/завершение функций, основные операции, ошибки.
 
---eval-metrics auc на тестовой выборки считается AUC SCORE
+--log-level debug    диагностика: метрики памяти, детали выполнения, отладочная информация.
+-----------------
+--mode train         для загрузки тренировочного датасета, 
+                     разделения его на train/test,
+                     обучения пайплайна,
+                     сохранения пайплайна.
+                                   
+--mode test          для загрузки тренировочного датасета, 
+                     разделения его на train/test,
+                     загрузки пайплайна,
+                     получения и сохранения предикта. 
+                                  
+--mode inference     для загрузки  датасета из указанной папки
+                     (по умолчанию это учебные данные),
+                     получения и сохранения предикта.
+                     Это имитирует получение предикта 
+                     на новых данных.
+------------------                 
+--output proba       для режимов test/inference 
+                     получение предикта вероятностей классов.
+                    
+--output predict     для режимов test/inference 
+                     получение предикта меток классов.
+------------------                
+--data-path          путь к данным для inference и transform_data,
+                     по умолчанию это путь
+                     к тренировочному датасету.   
+------------------                  
+--eval-metrics off  нет вывода метрик на тестовой выборке. 
+
+--eval-metrics auc  на тестовой выборки считается AUC SCORE
                      и выводится в логи.
                      
---eval-metrics acc на тестовой выборки считается ACCURACY
+--eval-metrics acc  на тестовой выборки считается ACCURACY
                      и выводится в логи.   
 ------------------                    
---output-dir str   путь сохранения предиктов на новых данных,
-                   по умолчанию /../predictions/iference/
-------------------                                                                  
+--output-dir str    путь сохранения предиктов на новых данных,
+                    по умолчанию /../predictions/inference/
+------------------       
+--max-files         количество файлов скачиваемое из указанной папки в режимах   
+                    inference и transform_data. Без ввода этого флага
+                    скачиваются все файлы. 
+------------------                                                        
 Флаги можно ставить в любом порядке.
 Любое сочетание флагов  не вызовет ошибки,
 если действие включаемое флагом не поддерживается в данном режиме
@@ -147,10 +153,11 @@ parser.add_argument(
     '--log-level',
     type=str,
     default='off',
-    choices=['info', 'off'],
+    choices=['info', 'debug', 'off'],
     help=(
         'Logging level: \n'
         'info - enable detailed logs\n'
+        'debug - diagnostics logs\n'
         'off - disable logs\n'
         'Default: off\n'
         'Example: --log-level info'
@@ -200,18 +207,30 @@ parser.add_argument(
         'Example: --eval-metrics auc'
     )
 )
-# Путь к новым данным для режима inference
+# Путь к новым данным для режимов inference и transform_data
 parser.add_argument(
     '--data-path',
     type=str,
-    default=os.path.join('..', 'data', 'raw'),
+    default=RAW_DATA_PATH,
     help=(
         'Path to data folder containing .pq (Parquet) files.\n'
         'This is used only for --mode inference to specify new data.\n'
         'In train/test modes, it is ignored — fixed paths from config are used instead.\n'
         'The script loads and concatenates all .pq files in the folder.\n'
         'Default: ../data/train/ (training data path).\n'
-        'Example (for inference): --data-path /path/to/new_data/'
+        'Example (for inference and transform_data): --data-path /path/to/new_data/'
+    )
+)
+# Количество скачиваемых из папки файлов для режимов inference и transform_data
+parser.add_argument(
+    '--max-files',
+    type=int,
+    default=None,
+    help=(
+        'Maximum number of data files to process.\n'
+        'Used for memory optimization in inference and transform_data modes.\n'
+        'Default: process all files in the folder\n'
+        'Example: --max-files 50'
     )
 )
 # Путь сохранения предиктов новых данных
@@ -240,7 +259,6 @@ def main_pipeline(
         drop_list_mean_value_frequency_feature: List[str],
         prop_features_dict: Dict[str, Any],
         float_downcast_columns_list: List[str],
-        drop_list_definite_value_prop: List[str],
         drop_list: List[str],
         cast_type_map: Dict[str, str],
         logger: Optional[logging.Logger] = None,
@@ -274,8 +292,6 @@ def main_pipeline(
         float_downcast_columns_list: List[str]: Список колонок  тип которых можно
             безопасно понизить с float64 до float32 без потери информативности
             из-за округления значений.
-        drop_list_definite_value_prop: List[str]: Список признаков для удаления в
-            в функции definite_value_proportion_features_pipeline.
         drop_list (List[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
         cast_type_map : dict  Словарь соответствия для приведения типов колонок
             {имя_колонки(str): тип(str)}.
@@ -294,25 +310,46 @@ def main_pipeline(
     preprocessing_pipe = Pipeline(
         [
             (
-            'to_numeric',
-            FunctionTransformer(convert_all_to_numeric_pipeline)
+                'to_numeric',
+                FunctionTransformer(
+                    convert_all_to_numeric_preprocessing
+                )
             ),
             (
-            'imputer',
-            imputer
+                'imputer', imputer
             ),
             (
-            'cast_type',
-            FunctionTransformer(
-                partial(
-                    cast_columns_by_map_pipeline,
-                    cast_type_map=cast_type_map
+                'memory_checkpoint_1',
+                FunctionTransformer(
+                    memory_checkpoint
+                )
+            ),
+            (
+                'cast_type',
+                FunctionTransformer(
+                    partial(
+                        cast_columns_by_map_preprocessing,
+                        cast_type_map=cast_type_map
                 )
             )
             ),
             (
-            'drop_duplicates',
-            FunctionTransformer(drop_duplicates_pipeline)
+                'memory_checkpoint_2',
+                FunctionTransformer(
+                    memory_checkpoint
+                )
+            ),
+            (
+                'drop_duplicates_preprocessing',
+                FunctionTransformer(
+                    drop_duplicates_preprocessing
+                )
+            ),
+            (
+                'memory_checkpoint_3',
+                FunctionTransformer(
+                    memory_checkpoint
+                )
             )
         ]
     )
@@ -337,12 +374,16 @@ def main_pipeline(
             ),
             (
                 'create_rn_max_feature',
-                FunctionTransformer(rn_max_feature_pipeline)
+                FunctionTransformer(
+                    rn_max_feature_pipeline
+                )
             ),
 
             (
                 'enc_paym_transcoding',
-                FunctionTransformer(enc_paym_transcoding_pipeline)
+                FunctionTransformer(
+                    enc_paym_transcoding_pipeline
+                )
             ),
             (
                 'from_enc_paym_create_normalized_group_sum_features_then_diff_features',
@@ -350,7 +391,8 @@ def main_pipeline(
                     partial(
                         enc_paym_norm_group_sum_diff_pipeline,
                         drop_list=drop_list_enc_paym_norm_summ_diff
-                    ))
+                    )
+                )
             ),
             (
                 'create_mean_value_frequency_feature',
@@ -363,29 +405,47 @@ def main_pipeline(
                 )
             ),
             (
+                'memory_checkpoint_4',
+                FunctionTransformer(
+                    memory_checkpoint
+                )
+            ),
+            (
                 'create_definite_value_proportion_features',
                 FunctionTransformer(
                     partial(
                         definite_value_proportion_features_pipeline,
                         features_dictionary=prop_features_dict,
-                        drop_list=drop_list_definite_value_prop,
                         float_downcast_columns_list=float_downcast_columns_list
                     )
                 )
             ),
             (
                 'create_sum_prop_1_feature',
-                FunctionTransformer(from_is_zero_prop_1_create_sum_prop_1_feature_pipeline)
+                FunctionTransformer(
+                    from_is_zero_prop_1_create_sum_prop_1_feature_pipeline
+                )
             ),
 
             (
                 'from_pre_since_opened_create_pre_since_opened_sum_mean_repeated',
-                FunctionTransformer(pre_since_opened_sum_mean_repeated_pipeline)
+                FunctionTransformer(
+                    pre_since_opened_sum_mean_repeated_pipeline
+                )
             ),
             (
-                'drop_temporary_and_source_columns_drop_duplicates',
+                'drop_temporary_source_columns',
                 FunctionTransformer(
-                    partial(drop_columns_drop_duplicates_pipeline, columns_list=drop_list)
+                    partial(
+                        drop_columns_pipeline,
+                        columns_list=drop_list
+                    )
+                )
+            ),
+            (
+                'drop_duplicates_and_id',
+                FunctionTransformer(
+                    drop_duplicates_pipeline
                 )
             ),
             (
@@ -455,7 +515,6 @@ def run_train_coordinator(
         drop_list_mean_value_frequency_feature: List[str],
         prop_features_dict: Dict[str, Any],
         float_downcast_columns_list: List[str],
-        drop_list_definite_value_prop: List[str],
         drop_list: List[str],
         classes_metric_list: List[str],
         cast_type_map: Optional[dict],
@@ -498,8 +557,6 @@ def run_train_coordinator(
         float_downcast_columns_list: List[str]: Список колонок  тип которых можно
             безопасно понизить с float64 до float32 без потери информативности
             из-за округления значений.
-        drop_list_definite_value_prop: List[str]: Список признаков для удаления в
-            в функции definite_value_proportion_features_pipeline.
         drop_list (List[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
         classes_metric_list: (List[str]) Список метрик требующих метки классов для расчета.
             Используется в pred_and_metrics_compatible.
@@ -593,7 +650,6 @@ def run_train_coordinator(
         drop_list_mean_value_frequency_feature=drop_list_mean_value_frequency_feature,
         prop_features_dict=prop_features_dict,
         float_downcast_columns_list=float_downcast_columns_list,
-        drop_list_definite_value_prop=drop_list_definite_value_prop,
         drop_list=drop_list,
         cast_type_map=cast_type_map,
         logger=logger
@@ -726,8 +782,6 @@ def run_test_coordinator(
         file_ext=file_ext
     )
 
-
-    load_dataset
     # Загружаем таргет
     # Делим датасет и таргет на train/test
     if logger is not None:
@@ -800,9 +854,11 @@ def run_test_coordinator(
     if logger is not None:
         logger.info('Test mode completed successfully')
 
+
 def run_inference_coordinator(
         pipeline_path: str,
         data_path: str,
+        max_files: int,
         temp_data_path: str,
         pre_features: List[str],
         num_parts_to_preprocess_at_once: int,
@@ -826,6 +882,7 @@ def run_inference_coordinator(
         pipeline_path (str): Путь к сериализованному sklearn pipeline
             (модель + препроцессинг/feature engineering).
         data_path (str): Путь к директории с новыми входными данными для инференса.
+        max_files (int, optional): Количество скачиваемых из папки файлов.
         temp_data_path (str): Директория для временного хранения обработанных частей данных.
         pre_features (List[str]): Список колонок, которые нужно оставить при загрузке нового датасета.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
@@ -845,6 +902,7 @@ def run_inference_coordinator(
         file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
             По умолчанию ".pq".
 
+
     Returns:
         None
 
@@ -863,7 +921,20 @@ def run_inference_coordinator(
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
-    files_count = check_data_folder_and_count_files(data_path, pattern)[1]
+    real_files_count = check_data_folder_and_count_files(data_path, pattern)[1]
+
+    # Если количество файлов не задано через парсер,
+    # то выбираем все файлы из паки.
+    # Если задано, то выбираем минимум из заданного или реального количества файлов.
+    if max_files is None:
+        files_count = real_files_count
+    else:
+        files_count = min(real_files_count, max_files)
+
+    if logger is not None:
+        logger.info(
+            f'Processing {files_count} files (max_files={max_files}, available={real_files_count})'
+        )
 
     # Загружаем датасет
     if logger is not None:
@@ -933,15 +1004,15 @@ if __name__ == "__main__":
     """
     Получаем логер из импортированной функции.
     Настраиваем логирование на основе аргумента.
-    'info' включит логи, 'off' — отключит.
+    
     """
     logger = setup_logging(args.log_level)
 
     """
-    Синхронизация verbose с --log-level (True если 'info', False если 'off')
+    Синхронизация verbose с --log-level (True если 'info' или 'debug', False если 'off')
     lля вывода  баров загрузки в функции load_dataset
     """
-    verbose = args.log_level == 'info'
+    verbose = args.log_level in ['info', 'debug']
     if logger is not None:
         logger.info('Pipeline started')
 
@@ -979,7 +1050,6 @@ if __name__ == "__main__":
             drop_list_mean_value_frequency_feature=DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE,
             prop_features_dict=PROP_FEATURES_DICT,
             float_downcast_columns_list=FLOAT_DOWNCAST_COLUMNS_LIST,
-            drop_list_definite_value_prop=DROP_LIST_DEFINITE_VALUE_PROP,
             drop_list=DROP_LIST,
             classes_metric_list=CLASSES_METRIC_LIST,
             cast_type_map=CAST_TYPE_MAP,
@@ -1010,6 +1080,7 @@ if __name__ == "__main__":
         'inference': lambda: run_inference_coordinator(
             pipeline_path=PIPELINE_PATH,
             data_path=args.data_path,
+            max_files=args.max_files,
             temp_data_path=TEMP_DATA_PATH,
             pre_features=PRE_FEATURES,
             num_parts_to_preprocess_at_once=1,
@@ -1020,7 +1091,8 @@ if __name__ == "__main__":
             verbose=verbose,
             cast_type_map=CAST_TYPE_MAP,
             logger=logger,
-            file_ext=FILE_EXTENSION
+            file_ext=FILE_EXTENSION,
+
         )
     }
     # Получим значение из парсера и
