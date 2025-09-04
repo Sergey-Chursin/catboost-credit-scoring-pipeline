@@ -48,6 +48,9 @@ PIPELINE_PATH = os.path.join(PROJECT_ROOT, 'models', 'main_pipeline.pkl')
 # Путь сохранения предиктов test_coordinator
 TEST_PREDICT_PATH = os.path.join(PROJECT_ROOT, 'predictions')
 
+# Путь сохранения трансформированных данных
+TRANSFORM_DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'processed')
+
 # Паттерн пути до сохранённого предикта вероятностей на тестовом наборе
 PROBA_TEST_PREDICT_PATTERN = os.path.join(PROJECT_ROOT, 'predictions', 'proba__raw__*.csv')
 

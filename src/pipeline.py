@@ -2,9 +2,9 @@ import logging
 import argparse
 import pickle
 import gc
+import datetime
 from typing import Any, Optional, List, Dict
 from functools import partial
-
 
 import numpy as np
 
@@ -40,7 +40,8 @@ from config import (
     FILE_EXTENSION,
     DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF,
     DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE,
-    FLOAT_DOWNCAST_COLUMNS_LIST
+    FLOAT_DOWNCAST_COLUMNS_LIST,
+    TRANSFORM_DATA_PATH
 )
 
 from data_utils import (
@@ -104,6 +105,17 @@ from classifier import CatBoostEnsembleClassifier
                      получения и сохранения предикта.
                      Это имитирует получение предикта 
                      на новых данных.
+ 
+--mode transform_split  для трансформации и сохранения тренировочного
+                        или тестового набора данных. Набор выбирается
+                        флагом  --transform-subset, без этого флага
+                        трансформироваться будет тренировочный набор.
+          
+--mode transform_data   для трансформации нового набора данных.         
+------------------
+--transform-subset train  выбор тренировочного набора данных для трансформации.  
+
+--transform-subset test   выбор тестового набора для данных для трансформации.                      
 ------------------                 
 --output proba       для режимов test/inference 
                      получение предикта вероятностей классов.
@@ -168,14 +180,36 @@ parser.add_argument(
     '--mode',
     type=str,
     default='train',
-    choices=['train', 'test', 'inference'],
+    choices=[
+        'train',
+        'test',
+        'inference',
+        'transform_split',
+        'transform_data'
+    ],
     help=(
         'Execution mode:\n'
         'train - fit and save model\n'
         'test - validate on the test set\n'
         'inference - predict on new data\n'
+        'transform_split - split dataset, transform and save train/test set\n'
+        'transform_data - transform and save new data\n'
         'Default: train\n'
         'Example: --mode test'
+    )
+)
+# Выбор train/test набора в transform_split режиме
+parser.add_argument(
+    '--transform-subset',
+    type=str,
+    default='train',
+    choices=['train', 'test'],
+    help=(
+        'Which subset to transform in transform_split mode:\n'
+        'train - transform training subset\n'
+        'test - transform test subset\n'
+        'Default: train\n'
+        'Example: --transform-subset test'
     )
 )
 # Режима вывода предикта. По умолчанию получаем вероятности классов.
@@ -353,7 +387,7 @@ def main_pipeline(
             )
         ]
     )
-    
+
     # Создадим объект классификатора
     classifier = CatBoostEnsembleClassifier(
         params_list=params_list,
@@ -902,13 +936,16 @@ def run_inference_coordinator(
         file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
             По умолчанию ".pq".
 
-
     Returns:
         None
 
     Side Effects:
         - Сохраняет файл с предсказаниями и колонкой id в директорию output_dir.
         - Записывает этапы вычислений в лог.
+
+    Примечание:
+    Для запуска функции необходимо наличие ранее обученного пайплайна
+    (обратите внимание на режим обучения --mode train).
     """
     if logger is not None:
         logger.info('Inference mode started')
@@ -997,6 +1034,148 @@ def run_inference_coordinator(
     )
     if logger is not None:
         logger.info('Inference mode completed successfully')
+
+
+def run_transform_split_coordinator(
+        pipeline_path: str,
+        raw_data_path: str,
+        temp_data_path: str,
+        pre_features: List[str],
+        num_parts_to_preprocess_at_once: int,
+        pattern: str,
+        target_path: str,
+        train_size: float,
+        seed_split_dataset: int,
+        stratify_col: str,
+        verbose: bool,
+        cast_type_map: Optional[dict],
+        output_dir: str,
+        transform_subset: str,
+        logger: Optional[logging.Logger] = None,
+        mask: Optional[str] = None,
+        file_ext: str = ".pq"
+):
+    """
+    Выполняет трансформацию тренировочной или тестовой выборки
+    и сохраняет результат.
+
+    Args:
+        pipeline_path (str): Путь к сериализованному sklearn pipeline
+            (модель + препроцессинг/feature engineering).
+        raw_data_path (str): Путь к директории с "сырыми" parquet-данными для тестирования.
+        temp_data_path (str): Директория для временного хранения обработанных файлов.
+        pre_features (List[str]): Список названий колонок, которые нужно загрузить из данных.
+        num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
+        pattern (str): Маска расширения для поиска файлов.
+        target_path (str): Путь к CSV-файлу с целевой переменной.
+        train_size (float): Доля обучающей выборки (от 0 до 1 при разбиении train/test).
+        seed_split_dataset (int): Seed для разделения на train/test (гарантирует воспроизводимость).
+        stratify_col (str): Имя колонки, по которой выполняется стратификация при разделении.
+        verbose (bool): Включить  прогресс-бары.
+        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип},
+            где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
+            Если None, типы не приводятся.
+        output_dir (str): Директория для сохранения трансформированного файла.
+        transform_subset (str): Выбор train/test подвыборки для трансформации.
+        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
+            Если None (по умолчанию), логирование этапов данной функции будет отключено.
+        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+            Если указана, выбираются только файлы, имя которых начинается с mask;
+            если None — выбираются все файлы.
+        file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
+            По умолчанию ".pq".
+
+
+    Функция производит следующие этапы:
+    - Загружает ранее обученный пайплайн (модель с этапами препроцессинга и feature engineering).
+    - Загружает исходный датасет и разделяет его на обучающую и тестовую части.
+    - Трансформирует train/test набор и сохраняет результат в csv файл.
+    - Протоколирует каждый ключевой этап с помощью логгера.
+
+    Исключения:
+    - Возникает и логируется ошибка, если обученный пайплайн не найден или не может быть загружен.
+
+    Возвращаемое значение:
+    - Ничего не возвращает (side effect: сохраняет трансформированный файл).
+
+    Примечание:
+    Для запуска функции необходимо наличие ранее обученного пайплайна
+    (обратите внимание на режим обучения --mode train).
+    """
+    if logger is not None:
+        logger.info('Transform_split mode started')
+
+    if logger is not None:
+        logger.info(f'Transform subset selected: {transform_subset}')
+    """
+    Пробуем загрузить обученный пайплайн,
+    если его нет то скрипт остановится с ошибкой.
+    """
+    if logger is not None:
+        logger.info('Loading  the pipeline')
+    pipe = load_pipeline(pipeline_path)
+
+    # Получаем количество файлов в папке с данными
+    files_count = check_data_folder_and_count_files(raw_data_path, pattern)[1]
+
+    # Загружаем датасет
+    if logger is not None:
+        logger.info(f'Loading dataset from : {raw_data_path}')
+
+    raw_data = load_dataset(
+        path_to_dataset=raw_data_path,
+        num_parts_to_preprocess_at_once=num_parts_to_preprocess_at_once,
+        num_parts_total=files_count,
+        save_to_path=temp_data_path,
+        verbose=verbose,
+        columns=pre_features,
+        cast_type_map=cast_type_map,
+        mask=mask,
+        file_ext=file_ext
+    )
+
+    # Загружаем таргет
+    # Делим датасет и таргет на train/test
+    if logger is not None:
+        logger.info('Splitting dataset into train and test sets')
+    train_test_dict = split_dataset_by_target(
+        dataset=raw_data,
+        path_to_target=target_path,
+        train_size=train_size,
+        random_state=seed_split_dataset,
+        stratify_col=stratify_col
+    )
+    # После разделения исходного датафрейма удаляем его
+    # для освобождения RAM
+    del raw_data
+    # Вызываем сборщика мусора
+    gc.collect()
+
+    # Выбираем подвыборку для трансформации
+    if transform_subset == 'train':
+        data_to_transform = train_test_dict['X_train']
+        subset_name = 'train'
+    else:
+        data_to_transform = train_test_dict['X_test']
+        subset_name = 'test'
+
+    # Трансформируем данные
+    transform_data = pipe.transform(data_to_transform)
+
+    # Создаём путь для сохранения
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")
+    filename = f"{output_dir}/transformed__{subset_name}__{timestamp}.csv"
+
+    if logger is not None:
+        logger.info(
+            f"Saving transformed {subset_name} subset to: {filename}")
+
+    # Сохраняем результат
+    transform_data.to_csv(filename, index=False)
+
+    if logger is not None:
+        logger.info('Transform_split mode completed successfully')
+
 
 if __name__ == "__main__":
     # Парсим аргументы из командной строки
@@ -1091,8 +1270,25 @@ if __name__ == "__main__":
             verbose=verbose,
             cast_type_map=CAST_TYPE_MAP,
             logger=logger,
-            file_ext=FILE_EXTENSION,
-
+            file_ext=FILE_EXTENSION
+        ),
+        'transform_split': lambda: run_transform_split_coordinator(
+            pipeline_path=PIPELINE_PATH,
+            raw_data_path=RAW_DATA_PATH,
+            temp_data_path=TEMP_DATA_PATH,
+            pre_features=PRE_FEATURES,
+            num_parts_to_preprocess_at_once=1,
+            pattern=PARQUET_FILE_PATTERN,
+            target_path=TARGET_PATH,
+            train_size=TRAIN_SIZE,
+            seed_split_dataset=SEED_SPLIT_DATASET,
+            stratify_col=STRATIFY_COL,
+            verbose=verbose,
+            cast_type_map=CAST_TYPE_MAP,
+            output_dir=TRANSFORM_DATA_PATH,
+            transform_subset=args.transform_subset,
+            logger=logger,
+            file_ext=FILE_EXTENSION
         )
     }
     # Получим значение из парсера и
