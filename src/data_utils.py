@@ -61,7 +61,7 @@ def load_data_chunks(
     columns: Optional[List[str]] = None,
     cast_type_map: Optional[dict] = None,
     mask: Optional[str] = None,
-    file_ext: str = ".pq"
+    search_file_ext: str = ".pq"
 ) -> pd.DataFrame:
     """
     Читает указанные партиции Parquet из директории, объединяет их в DataFrame
@@ -80,7 +80,7 @@ def load_data_chunks(
         mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
-        file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
+        search_file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
             По умолчанию ".pq".
 
     Returns:
@@ -92,14 +92,14 @@ def load_data_chunks(
     res = []
 
     # Собираем отсортированный список файлов с нужным расширением из папки:
-    #  Если mask не задан (пустая строка), берём все файлы, заканчивающиеся на file_ext (например, '.parquet').
-    # Если mask задан, берём только те файлы, которые начинаются с mask и заканчиваются на file_ext.
+    #  Если mask не задан (пустая строка), берём все файлы, заканчивающиеся на search_file_ext (например, '.parquet').
+    # Если mask задан, берём только те файлы, которые начинаются с mask и заканчиваются на search_file_ext.
     # Это позволяет гибко отбирать либо все партиции указанного расширения, либо только конкретные
     # (например, 'train*.parquet', 'test*.pq') без риска схватить посторонние файлы.
     dataset_paths = sorted(
         os.path.join(path_to_dataset, filename)
         for filename in os.listdir(path_to_dataset)
-        if filename.endswith(file_ext)
+        if filename.endswith(search_file_ext)
         and (not mask or filename.startswith(mask))
     )
 
@@ -144,7 +144,7 @@ def load_dataset(
         columns: Optional[List[str]] = None,
         cast_type_map: Optional[dict] = None,
         mask: Optional[str] = None,
-        file_ext: str = ".pq"
+        search_file_ext: str = ".pq"
 ) -> pd.DataFrame:
     """
     Обёртка для функции load_data_chunks.
@@ -168,7 +168,7 @@ def load_dataset(
         mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
-        file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
+        search_file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
             По умолчанию ".pq".
 
     Returns:
@@ -197,7 +197,7 @@ def load_dataset(
             columns=columns,
             cast_type_map=cast_type_map,
             mask=mask,
-            file_ext=file_ext
+            search_file_ext=search_file_ext
         )
 
         # Если указан путь для сохранения — сохраняем обработанный
@@ -341,7 +341,7 @@ def make_file_path(
     имя исходной папки с данными и текущую дату/время.
 
     Имя файла строится по шаблону:
-    <output_type>__<имя_папки_источника>__<текущая_дата_и_время>.<ext>
+    <output_type>_<имя_папки_источника>_<текущая_дата_и_время>.<ext>
 
     Args:
         output_type (str): Тип вывода (например, 'proba' или 'predict').
