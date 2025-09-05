@@ -35,9 +35,9 @@ from config import (
     DROP_LIST,
     PARQUET_FILE_PATTERN,
     CLASSES_METRIC_LIST,
-    PREDICT_FILE_EXTENSION,
+    SAVE_FILE_EXTENSION,
     CAST_TYPE_MAP,
-    FILE_EXTENSION,
+    SEARCH_FILE_EXTENSION,
     DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF,
     DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE,
     FLOAT_DOWNCAST_COLUMNS_LIST,
@@ -917,6 +917,7 @@ def run_inference_coordinator(
             (модель + препроцессинг/feature engineering).
         data_path (str): Путь к директории с новыми входными данными для инференса.
         max_files (int, optional): Количество скачиваемых из папки файлов.
+            Если не задано то качаются все файлы из папки.
         temp_data_path (str): Директория для временного хранения обработанных частей данных.
         pre_features (List[str]): Список колонок, которые нужно оставить при загрузке нового датасета.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
@@ -1066,7 +1067,8 @@ def run_transform_split_coordinator(
         temp_data_path (str): Директория для временного хранения обработанных файлов.
         pre_features (List[str]): Список названий колонок, которые нужно загрузить из данных.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
-        pattern (str): Маска расширения для поиска файлов.
+        pattern (str): Маска расширения для поиска файлов. Отличается от search_file_ext даже
+            при одном и том же расширении.
         target_path (str): Путь к CSV-файлу с целевой переменной.
         train_size (float): Доля обучающей выборки (от 0 до 1 при разбиении train/test).
         seed_split_dataset (int): Seed для разделения на train/test (гарантирует воспроизводимость).
@@ -1160,21 +1162,142 @@ def run_transform_split_coordinator(
         subset_name = 'test'
 
     # Трансформируем данные
-    transform_data = pipe.transform(data_to_transform)
+    transformed_data = pipe.transform(data_to_transform)
 
     # Создаём путь для сохранения
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")
-    filename = f"{output_dir}/transformed__{subset_name}__{timestamp}.csv"
+    file_name = f"{output_dir}/transformed__{subset_name}__{timestamp}.csv"
 
     if logger is not None:
         logger.info(
-            f"Saving transformed {subset_name} subset to: {filename}")
+            f"Saving transformed {subset_name} subset to: {file_name}")
 
     # Сохраняем результат
-    transform_data.to_csv(filename, index=False)
+    transformed_data.to_csv(file_name, index=False)
 
     if logger is not None:
         logger.info('Transform_split mode completed successfully')
+
+
+def run_transform_data_coordinator(
+        pipeline_path: str,
+        data_path: str,
+        max_files: int,
+        temp_data_path: str,
+        pre_features: List[str],
+        num_parts_to_preprocess_at_once: int,
+        pattern: str,
+        output_dir: str,
+        verbose: bool,
+        cast_type_map: Optional[dict],
+        search_file_ext: str,
+        save_file_ext: str,
+        output_type: str = 'transformed',
+        logger: Optional[logging.Logger] = None,
+        mask: Optional[str] = None
+):
+    """
+    Выполняет трансформацию  данных и сохраняет результат.
+
+    Args:
+        pipeline_path (str): Путь к сериализованному sklearn pipeline.
+        data_path (str): Путь к директории с новыми входными данными.
+        max_files (int, optional): Количество скачиваемых из папки файлов.
+            Если не задано то качаются все файлы из папки.
+        temp_data_path (str): Директория для временного хранения обработанных частей данных.
+        pre_features (List[str]): Список колонок, которые нужно оставить при загрузке датасета.
+        num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
+        pattern (str): Маска расширения для поиска файлов. Отличается от search_file_ext даже
+            при одном и том же расширении.
+        output_dir (str): Директория для сохранения трансформированного файла.
+        verbose (bool): Включить прогресс-бары.
+        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип}.
+            Если None, типы не приводятся.
+        search_file_ext (str): Расширение файлов для поиска (например, ".csv", ".pq").
+            Отличается от pattern даже при одном и том же расширении.
+        save_file_ext (str): Расширение файла для сохранения результата (например, ".csv", ".pq").
+        output_type (str, optional): Начало имени трансформированных файлов при сохранении.
+            По умолчанию 'transformed'.
+        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
+            Если None (по умолчанию), логирование этапов данной функции будет отключено.
+        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+            Если указана, выбираются только файлы, имя которых начинается с mask;
+            если None — выбираются все файлы.
+
+    Returns:
+        None
+
+    Side Effects:
+        - Сохраняет файл с предсказаниями и колонкой id в директорию output_dir.
+        - Записывает этапы вычислений в лог.
+
+    Примечание:
+    Для запуска функции необходимо наличие ранее обученного пайплайна
+    (обратите внимание на режим обучения --mode train).
+    """
+    if logger is not None:
+        logger.info('Transform_data mode started')
+
+    """
+    Пробуем загрузить обученный пайплайн,
+    если его нет то скрипт остановится с ошибкой.
+    """
+    if logger is not None:
+        logger.info('Loading  the pipeline')
+    pipe = load_pipeline(pipeline_path)
+
+    # Получаем количество файлов в папке с данными
+    real_files_count = check_data_folder_and_count_files(data_path, pattern)[1]
+
+    # Если количество файлов не задано через парсер,
+    # то выбираем все файлы из паки.
+    # Если задано, то выбираем минимум из заданного или реального количества файлов.
+    if max_files is None:
+        files_count = real_files_count
+    else:
+        files_count = min(real_files_count, max_files)
+
+    if logger is not None:
+        logger.info(
+            f'Processing {files_count} files (max_files={max_files}, available={real_files_count})'
+        )
+
+    if logger is not None:
+        logger.info(f'Loading dataset from : {data_path}')
+
+    # Загружаем датасет
+    data = load_dataset(
+        path_to_dataset=data_path,
+        num_parts_to_preprocess_at_once=num_parts_to_preprocess_at_once,
+        num_parts_total=files_count,
+        save_to_path=temp_data_path,
+        verbose=verbose,
+        columns=pre_features,
+        cast_type_map=cast_type_map,
+        mask=mask,
+        file_ext=search_file_ext
+    )
+    # Трансформируем даные
+    transformed_data = pipe.transform(data)
+
+    # Создаём имя файла
+    file_name = make_file_path(
+        output_type=output_type,
+        data_path=data_path,
+        output_dir=output_dir,
+        ext=save_file_ext
+    )
+
+    if logger is not None:
+        logger.info(
+            f"Saving transformed data to: {file_name}")
+
+    # Сохраняем результат
+    transformed_data.to_csv(file_name, index=False)
+
+    if logger is not None:
+        logger.info('Transform_data mode completed successfully')
+
 
 
 if __name__ == "__main__":
@@ -1233,7 +1356,7 @@ if __name__ == "__main__":
             classes_metric_list=CLASSES_METRIC_LIST,
             cast_type_map=CAST_TYPE_MAP,
             logger=logger,
-            file_ext=FILE_EXTENSION
+            file_ext=SEARCH_FILE_EXTENSION
         ),
         'test': lambda: run_test_coordinator(
             pipeline_path=PIPELINE_PATH,
@@ -1247,14 +1370,14 @@ if __name__ == "__main__":
             seed_split_dataset=SEED_SPLIT_DATASET,
             stratify_col=STRATIFY_COL,
             test_predict_path=TEST_PREDICT_PATH,
-            predict_file_extension=PREDICT_FILE_EXTENSION,
+            predict_file_extension=SAVE_FILE_EXTENSION,
             output=args.output,
             eval_metrics=args.eval_metrics,
             classes_metric_list=CLASSES_METRIC_LIST,
             verbose=verbose,
             cast_type_map=CAST_TYPE_MAP,
             logger=logger,
-            file_ext=FILE_EXTENSION
+            file_ext=SEARCH_FILE_EXTENSION
         ),
         'inference': lambda: run_inference_coordinator(
             pipeline_path=PIPELINE_PATH,
@@ -1264,13 +1387,13 @@ if __name__ == "__main__":
             pre_features=PRE_FEATURES,
             num_parts_to_preprocess_at_once=1,
             pattern=PARQUET_FILE_PATTERN,
-            predict_file_extension=PREDICT_FILE_EXTENSION,
+            predict_file_extension=SAVE_FILE_EXTENSION,
             output=args.output,
             output_dir=args.output_dir,
             verbose=verbose,
             cast_type_map=CAST_TYPE_MAP,
             logger=logger,
-            file_ext=FILE_EXTENSION
+            file_ext=SEARCH_FILE_EXTENSION
         ),
         'transform_split': lambda: run_transform_split_coordinator(
             pipeline_path=PIPELINE_PATH,
@@ -1288,8 +1411,23 @@ if __name__ == "__main__":
             output_dir=TRANSFORM_DATA_PATH,
             transform_subset=args.transform_subset,
             logger=logger,
-            file_ext=FILE_EXTENSION
-        )
+            file_ext=SEARCH_FILE_EXTENSION
+        ),
+        'transform_data': lambda: run_transform_data_coordinator(
+            pipeline_path=PIPELINE_PATH,
+            data_path=args.data_path,
+            max_files=args.max_files,
+            temp_data_path=TEMP_DATA_PATH,
+            pre_features=PRE_FEATURES,
+            num_parts_to_preprocess_at_once=1,
+            pattern=PARQUET_FILE_PATTERN,
+            output_dir=TRANSFORM_DATA_PATH,
+            verbose=verbose,
+            cast_type_map=CAST_TYPE_MAP,
+            logger=logger,
+            search_file_ext=SEARCH_FILE_EXTENSION,
+            save_file_ext=SAVE_FILE_EXTENSION
+    )
     }
     # Получим значение из парсера и
     # запустим соответствующий режим пайплайна

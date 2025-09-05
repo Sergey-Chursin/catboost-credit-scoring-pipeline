@@ -15,7 +15,7 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 PARQUET_FILE_PATTERN = '*.pq'
 
 # Расширение файлов для функции load_data_chunks
-FILE_EXTENSION = '.pq'
+SEARCH_FILE_EXTENSION = '.pq'
 
 # Константы для функции load_dataset
 # Путь к директории с исходными данными
@@ -23,8 +23,10 @@ RAW_DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'raw')
 # Путь к директории с техническими данными
 TEMP_DATA_PATH = os.path.join(PROJECT_ROOT, 'data', 'temp')
 
-# Тип расширения для функции make_file_path
-PREDICT_FILE_EXTENSION  = 'csv'
+# Тип расширения для функции make_file_path для сохранения предиктов
+# в run_test_coordinator и run_inference_coordinator
+# и транформированных данных в run_transform_data_coordinator
+SAVE_FILE_EXTENSION  = 'csv'
 
 # Константы для функции split_dataset_by_target
 # Путь к таргет датасету
