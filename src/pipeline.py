@@ -829,6 +829,11 @@ def run_test_coordinator(
         stratify_col=stratify_col
     )
 
+    # После разделения исходного датафрейма удаляем его для освобождения RAM
+    del raw_data
+    # Вызываем сборщика мусора
+    gc.collect()
+
     # Используем dispatch mapping для выбора жесткой или мягкой классификации
     # Создадим словарь режимов вывода
     output_handlers = {
