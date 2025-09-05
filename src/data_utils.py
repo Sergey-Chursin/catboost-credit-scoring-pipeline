@@ -360,7 +360,7 @@ def make_file_path(
     # Получаем текущее время
     dt = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")
     # Собираем имя файла
-    filename = f"{output_type}__{base}__{dt}.{ext}"
+    filename = f"{output_type}_{base}_{dt}.{ext}"
 
     return os.path.join(output_dir, filename)
 
