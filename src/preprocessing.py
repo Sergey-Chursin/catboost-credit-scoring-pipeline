@@ -1,12 +1,11 @@
 import logging
 from typing import Dict
 
-
 import pandas as pd
 
 from sklearn.base import BaseEstimator, TransformerMixin
 
-from memory_utils import rss_process_statistic, cgroup_memory_statistic
+from decorators import memory_monitor
 
 """
 Функции предобработки датасета.
@@ -47,7 +46,7 @@ from memory_utils import rss_process_statistic, cgroup_memory_statistic
 """
 logger = logging.getLogger(__name__)
 
-
+@memory_monitor
 def convert_all_to_numeric_preprocessing(
         df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -62,26 +61,13 @@ def convert_all_to_numeric_preprocessing(
         pandas.DataFrame : Копия исходного DataFrame
         где все колонки приведены к числовому типу.
     """
-    logger.info('FUNCTION convert_all_to_numeric_preprocessing')
-
-    logger.debug('Incoming statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
 
     # errors='coerce' при невозможности преобразования заменит на NaN.
     df = df.apply(lambda col: pd.to_numeric(col, errors='coerce'))
 
-    logger.debug('Output statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
     return  df
 
-
+@memory_monitor
 def cast_columns_by_map_preprocessing(
         df: pd.DataFrame,
         cast_type_map: Dict[str, str]
@@ -95,14 +81,6 @@ def cast_columns_by_map_preprocessing(
     Returns:
         pd.DataFrame : DataFrame, где указанные колонки приведены к нужному типу.
     """
-    logger.info('FUNCTION cast_columns_by_map_preprocessing')
-
-    logger.debug('Incoming statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
 
     # Согласно логике preprocessing_pipe в датасете не должно остаться NaN,
     # но всё же введём проверку на всякий случай.
@@ -114,15 +92,9 @@ def cast_columns_by_map_preprocessing(
         if col in df.columns:
             df[col] = df[col].astype(dtype, copy=False)
 
-    logger.debug('Output statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
     return df
 
-
+@memory_monitor
 def drop_duplicates_preprocessing(
         df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -137,13 +109,6 @@ def drop_duplicates_preprocessing(
             Если дубликаты найдены и удалены — новый объект.
             Если дубликаты не найдены — возвращается исходный DataFrame без изменений.
     """
-    logger.info("FUNCTION drop_duplicates_preprocessing")
-
-    logger.debug('Incoming statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
 
     # Подсчитываем количество дублирующихся строк
     n_dupes = df.duplicated().sum()
@@ -153,23 +118,11 @@ def drop_duplicates_preprocessing(
 
         df = df.drop_duplicates(ignore_index=True)
 
-        logger.debug('Output statistics')
-        # Проверим RSS процесса и объекты в RAM
-        rss_process_statistic(df)
-        # Проверим потребление памяти по cgroup
-        cgroup_memory_statistic()
-
         return  df
 
     else:
         # Если дубликатов нет — уведомляем и возвращаем исходный DataFrame
         logger.info("No duplicates found, no cleanup operation required.")
-
-        logger.debug('Output statistics')
-        # Проверим RSS процесса и объекты в RAM
-        rss_process_statistic(df)
-        # Проверим потребление памяти по cgroup
-        cgroup_memory_statistic()
 
         return df
 

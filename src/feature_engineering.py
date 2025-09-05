@@ -10,6 +10,7 @@ from memory_utils import (
     heap_trim,
     cgroup_memory_statistic
 )
+from decorators import memory_monitor
 
 """
 Создаём локальный логгер для этого модуля
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 # FEATURE ENGINEERING PIPELINE FUNCTIONS
 
+
+@memory_monitor
 def rn_max_feature_pipeline(
         df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -34,13 +37,6 @@ def rn_max_feature_pipeline(
     Returns:
         pandas.DataFrame : Копия исходного DataFrame с добавленной колонкой 'rn_max'.
     """
-    logger.info('FUNCTION rn_max_feature_pipeline')
-
-    logger.debug('Incoming statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
 
     # Для каждой строки определяем максимальное значение 'rn' среди всех строк с тем же 'id'
     #Метод transform('max') возвращает Series длины исходного DataFrame, где для каждой строки
@@ -51,16 +47,9 @@ def rn_max_feature_pipeline(
     # Удаляем уже не нужный столбец для экономии памяти
     df = df.drop('rn', axis=1)
 
-
-    logger.debug('Output statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
     return df
 
-
+@memory_monitor
 def enc_paym_transcoding_pipeline(
         df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -79,13 +68,6 @@ def enc_paym_transcoding_pipeline(
     Returns:
     pandas.DataFrame : Копия DataFrame с перекодированными признаками.
     """
-    logger.info('FUNCTION enc_paym_transcoding_pipeline ')
-
-    logger.debug('Incoming statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
 
     # Список колонок для перекодировки
     columns = [col for col in df.columns if col.startswith('enc_paym_')]
@@ -94,14 +76,10 @@ def enc_paym_transcoding_pipeline(
     for col in columns:
         df.loc[:, col] = df[col].replace({1: 0, 2: 1, 3: 2, 4: 3})
 
-    logger.debug('Output statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
     return df
 
+
+@memory_monitor
 def enc_paym_norm_group_sum_diff_pipeline(
         df: pd.DataFrame,
         drop_list: List[str]
@@ -135,15 +113,7 @@ def enc_paym_norm_group_sum_diff_pipeline(
       чтобы зафиксировать дополнительные параметры заранее.
     """
 
-    logger.info('FUNCTION enc_paym_norm_group_sum_diff_pipeline')
-
-    logger.debug('Incoming statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
-    logger.info('New temporary features')
+    logger.info('NEW temporary features')
 
     # Создаём временный датафрейм со столбцом id из df
     df_buff = pd.DataFrame(data=df['id'], columns=['id'])
@@ -247,7 +217,7 @@ def enc_paym_norm_group_sum_diff_pipeline(
     )
 
     logger.info("""\
-New difference columns
+NEW difference columns
 enc_paym_avg_0_1_this_year_diff
 enc_paym_avg_1_2_all_diff
 enc_paym_avg_0_years_diff
@@ -258,15 +228,10 @@ enc_paym_avg_0_years_diff
     df = df.drop(drop_list, axis=1)
     logger.info(f"DataFrame shape after drop(): {df.shape}")
 
-    logger.debug('Output statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
     return df
 
 
+@memory_monitor
 def mean_value_frequency_feature_pipeline(
         df: pd.DataFrame,
         columns_list: List[str],
@@ -296,15 +261,8 @@ def mean_value_frequency_feature_pipeline(
      Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
       чтобы зафиксировать дополнительные параметры заранее.
     """
-    logger.info('FUNCTION mean_value_frequency_feature_pipeline')
 
-    logger.debug('Incoming statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
-    logger.info('New features')
+    logger.info('NEW features')
 
     for col in columns_list:
         new_col = f'{col}_mean_freq'
@@ -333,15 +291,10 @@ def mean_value_frequency_feature_pipeline(
     df = df.drop(drop_list, axis=1)
     logger.info(f"DataFrame shape after drop(): {df.shape}")
 
-    logger.debug('Output statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
     return df
 
 
+@memory_monitor
 def definite_value_proportion_features_pipeline(
         df: pd.DataFrame,
         features_dictionary: Dict[str, Any],
@@ -372,18 +325,6 @@ def definite_value_proportion_features_pipeline(
     (который ожидает функцию только с одним аргументом — DataFrame).
      Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
       чтобы зафиксировать дополнительные параметры заранее.
-    """
-    logger.info('FUNCTION definite_value_proportion_features_pipeline')
-
-    logger.debug('Incoming statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-    
-    """
-    Создадим словарь где для каждого признака перечислены значения,
-    по которым считаем долю.
     """
 
     # Итерируем по ключам
@@ -436,15 +377,10 @@ def definite_value_proportion_features_pipeline(
         # Пробуем оптимизировать RSS
         heap_trim()
 
-    logger.debug('Output statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
     return df
 
 
+@memory_monitor
 def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
         df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -458,13 +394,6 @@ def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
     Returns:
         pandas.DataFrame : Копия DataFrame с добавленным признаком 'is_zero_sum_prop_1'.
     """
-    logger.info('FUNCTION from_is_zero_prop_1_create_sum_prop_1_feature_pipeline')
-
-    logger.debug('Incoming statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
 
     columns = [
         'is_zero_loans5_prop_1',
@@ -476,15 +405,10 @@ def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
 
     df['is_zero_sum_prop_1'] = df[columns].sum(axis=1) / 5
 
-    logger.debug('Output statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
     return df
 
 
+@memory_monitor
 def pre_since_opened_sum_mean_repeated_pipeline(
         df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -508,13 +432,6 @@ def pre_since_opened_sum_mean_repeated_pipeline(
         pandas.DataFrame :  Копия DataFrame с
         добавленным признаком 'pre_since_opened_repeated_prop'.
     """
-    logger.info('FUNCTION pre_since_opened_sum_mean_repeated_pipeline')
-
-    logger.debug('Incoming statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
     
     # Считаем количество каждого значения 'pre_since_opened' для каждого 'id'
     counts = df.groupby(['id', 'pre_since_opened']).size()
@@ -553,15 +470,10 @@ def pre_since_opened_sum_mean_repeated_pipeline(
         df['pre_since_opened_repeated_prop'].astype('float32')
     )
 
-    logger.debug('Output statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
     return df
 
 
+@memory_monitor
 def drop_columns_pipeline(
         df: pd.DataFrame,
         columns_list: List[str]
@@ -581,13 +493,6 @@ def drop_columns_pipeline(
      Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
       чтобы зафиксировать дополнительные параметры заранее.
     """
-    logger.info('FUNCTION drop_columns_pipeline')
-
-    logger.debug('Incoming statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
 
     # Выведем размер датафрейма
     logger.info(f"DataFrame shape: {df.shape}")
@@ -597,15 +502,10 @@ def drop_columns_pipeline(
     # Выведем размер датафрейма
     logger.info(f"After dropping columns DataFrame shape : {df.shape}")
 
-    logger.debug('Output statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
-
     return  df
 
 
+@memory_monitor
 def drop_duplicates_pipeline(
         df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -619,14 +519,6 @@ def drop_duplicates_pipeline(
     Returns:
         pd.DataFrame : Копия DataFrame без дубликатов по 'id' и столбца 'id'.
     """
-
-    logger.info('FUNCTION drop_duplicates_pipeline')
-
-    logger.debug('Incoming statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
 
     # Выведем размер датафрейма
     logger.info(f"DataFrame shape: {df.shape}")
@@ -645,12 +537,6 @@ def drop_duplicates_pipeline(
 
     # Выведем размер датафрейма и типы колонок
     logger.info(f"DataFrame shape after dropping ID: {df.shape}")
-
-    logger.debug('Output statistics')
-    # Проверим RSS процесса и объекты в RAM
-    rss_process_statistic(df)
-    # Проверим потребление памяти по cgroup
-    cgroup_memory_statistic()
 
     return df
 
