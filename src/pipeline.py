@@ -1052,18 +1052,20 @@ def run_transform_split_coordinator(
         cast_type_map: Optional[dict],
         output_dir: str,
         transform_subset: str,
+        search_file_ext: str,
+        save_file_ext: str,
+        output_type: str = 'transformed',
         logger: Optional[logging.Logger] = None,
         mask: Optional[str] = None,
-        file_ext: str = ".pq"
+
 ):
     """
     Выполняет трансформацию тренировочной или тестовой выборки
     и сохраняет результат.
 
     Args:
-        pipeline_path (str): Путь к сериализованному sklearn pipeline
-            (модель + препроцессинг/feature engineering).
-        raw_data_path (str): Путь к директории с "сырыми" parquet-данными для тестирования.
+        pipeline_path (str): Путь к сериализованному sklearn pipeline.
+        raw_data_path (str): Путь к директории с "сырыми" parquet-данными.
         temp_data_path (str): Директория для временного хранения обработанных файлов.
         pre_features (List[str]): Список названий колонок, которые нужно загрузить из данных.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
@@ -1074,25 +1076,28 @@ def run_transform_split_coordinator(
         seed_split_dataset (int): Seed для разделения на train/test (гарантирует воспроизводимость).
         stratify_col (str): Имя колонки, по которой выполняется стратификация при разделении.
         verbose (bool): Включить  прогресс-бары.
-        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип},
-            где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
+        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип}.
             Если None, типы не приводятся.
         output_dir (str): Директория для сохранения трансформированного файла.
         transform_subset (str): Выбор train/test подвыборки для трансформации.
+        search_file_ext (str): Расширение файлов для поиска (например, ".csv", ".pq").
+            Отличается от pattern даже при одном и том же расширении.
+        save_file_ext (str): Расширение файла для сохранения результата (например, ".csv", ".pq").
+        output_type (str, optional): Начало имени трансформированных файлов при сохранении.
+            По умолчанию 'transformed'.
         logger (Optional[logging.Logger], default=None): Логгер для сообщений.
             Если None (по умолчанию), логирование этапов данной функции будет отключено.
         mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
-        file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
-            По умолчанию ".pq".
+
 
 
     Функция производит следующие этапы:
     - Загружает ранее обученный пайплайн (модель с этапами препроцессинга и feature engineering).
     - Загружает исходный датасет и разделяет его на обучающую и тестовую части.
     - Трансформирует train/test набор и сохраняет результат в csv файл.
-    - Протоколирует каждый ключевой этап с помощью логгера.
+    - Протоколирует каждый ключевой этап с помощью логера.
 
     Исключения:
     - Возникает и логируется ошибка, если обученный пайплайн не найден или не может быть загружен.
@@ -1133,13 +1138,13 @@ def run_transform_split_coordinator(
         columns=pre_features,
         cast_type_map=cast_type_map,
         mask=mask,
-        file_ext=file_ext
+        file_ext=search_file_ext
     )
 
-    # Загружаем таргет
-    # Делим датасет и таргет на train/test
     if logger is not None:
         logger.info('Splitting dataset into train and test sets')
+    # Загружаем таргет
+    # Делим датасет и таргет на train/test
     train_test_dict = split_dataset_by_target(
         dataset=raw_data,
         path_to_target=target_path,
@@ -1166,7 +1171,7 @@ def run_transform_split_coordinator(
 
     # Создаём путь для сохранения
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")
-    file_name = f"{output_dir}/transformed__{subset_name}__{timestamp}.csv"
+    file_name = f"{output_dir}/{output_type}_{subset_name}_{timestamp}.{save_file_ext}"
 
     if logger is not None:
         logger.info(
