@@ -90,26 +90,26 @@ from classifier import CatBoostEnsembleClassifier
 
 --log-level debug    диагностика: метрики памяти, детали выполнения, отладочная информация.
 -----------------
---mode train         для загрузки тренировочного датасета, 
-                     разделения его на train/test,
-                     обучения пайплайна,
-                     сохранения пайплайна.
+--mode train             для загрузки тренировочного датасета, 
+                         разделения его на train/test,
+                         обучения пайплайна,
+                         сохранения пайплайна.
                                    
---mode test          для загрузки тренировочного датасета, 
-                     разделения его на train/test,
-                     загрузки пайплайна,
-                     получения и сохранения предикта. 
+--mode test              для загрузки тренировочного датасета, 
+                         разделения его на train/test,
+                         загрузки пайплайна,
+                         получения и сохранения предикта. 
                                   
---mode inference     для загрузки  датасета из указанной папки
-                     (по умолчанию это учебные данные),
-                     получения и сохранения предикта.
-                     Это имитирует получение предикта 
-                     на новых данных.
+--mode inference         для загрузки  датасета из указанной папки
+                         (по умолчанию это учебные данные),
+                         получения и сохранения предикта.
+                         Это имитирует получение предикта 
+                         на новых данных.
  
 --mode transform_split  для трансформации и сохранения тренировочного
                         или тестового набора данных. Набор выбирается
                         флагом  --transform-subset, без этого флага
-                        трансформироваться будет тренировочный набор.
+                        трансформируется тренировочный набор.
           
 --mode transform_data   для трансформации нового набора данных.         
 ------------------
@@ -130,10 +130,10 @@ from classifier import CatBoostEnsembleClassifier
 --eval-metrics off  нет вывода метрик на тестовой выборке. 
 
 --eval-metrics auc  на тестовой выборки считается AUC SCORE
-                     и выводится в логи.
+                    и выводится в логи.
                      
 --eval-metrics acc  на тестовой выборки считается ACCURACY
-                     и выводится в логи.   
+                    и выводится в логи.   
 ------------------                    
 --output-dir str    путь сохранения предиктов на новых данных,
                     по умолчанию /../predictions/inference/
@@ -145,7 +145,7 @@ from classifier import CatBoostEnsembleClassifier
 Флаги можно ставить в любом порядке.
 Любое сочетание флагов  не вызовет ошибки,
 если действие включаемое флагом не поддерживается в данном режиме
-оно просто проигнорируется. 
+оно просто игнорируется. 
 """
 
 # Создаём парсер c описанием для --help и
@@ -158,7 +158,7 @@ parser = argparse.ArgumentParser(
 Настраиваем аргументы парсера 
 choices - автоматически проверит ввод и выдаст ошибку при неверном значении
 help - текст сообщения команды --help  
-default - значение по умолчанию, этот флаг можно не вводить.
+default - значение по умолчанию.
 """
 # Режим логирования. По умолчанию логи отключены.
 parser.add_argument(
@@ -169,7 +169,7 @@ parser.add_argument(
     help=(
         'Logging level: \n'
         'info - enable detailed logs\n'
-        'debug - diagnostics logs\n'
+        'debug - add diagnostics logs\n'
         'off - disable logs\n'
         'Default: off\n'
         'Example: --log-level info'
@@ -248,7 +248,7 @@ parser.add_argument(
     default=RAW_DATA_PATH,
     help=(
         'Path to data folder containing .pq (Parquet) files.\n'
-        'This is used only for --mode inference to specify new data.\n'
+        'This is used for  inference and transform_data modes to specify new data.\n'
         'In train/test modes, it is ignored — fixed paths from config are used instead.\n'
         'The script loads and concatenates all .pq files in the folder.\n'
         'Default: ../data/train/ (training data path).\n'
@@ -326,21 +326,20 @@ def main_pipeline(
         float_downcast_columns_list: List[str]: Список колонок  тип которых можно
             безопасно понизить с float64 до float32 без потери информативности
             из-за округления значений.
-        drop_list (List[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
-        cast_type_map : dict  Словарь соответствия для приведения типов колонок
+        drop_list (List[str]): Список признаков для удаления из датасета на последнем этапе пайплайна
+        cast_type_map : dict  Словарь соответствия для приведения типов колонок при загрузке данных
             {имя_колонки(str): тип(str)}.
         logger (Optional[logging.Logger], default=None): Логгер для сообщений.
             Если None (по умолчанию), логирование этапов данной функции будет отключено.
 
     Returns:
-        sklearn.pipeline.Pipeline: Собранный pipeline, готовый для обучения (fit)
-            или предсказания (predict/predict_proba).
+        sklearn.pipeline.Pipeline: Собранный pipeline, готовый для обучения (fit).
     """
 
     # Создаём SampleMedianImputer для заполнения пустых значений медианами
     imputer = SampleMedianImputer(sample_frac=sample_frac)
 
-    # Создаём паплайн препроцессинга данных
+    # Создаём пайплайн препроцессинга данных
     preprocessing_pipe = Pipeline(
         [
             (
@@ -490,6 +489,7 @@ def main_pipeline(
     )
     return main_pipe
 
+
 def load_pipeline(
         path: str,
         logger: Optional[logging.Logger] = None
@@ -506,7 +506,7 @@ def load_pipeline(
             Если None (по умолчанию), логирование этапов данной функции будет отключено.
 
     Returns:
-        object: Загруженный пайплайн (pipeline), восстановленный из файла.
+        object: Загруженный pipeline.
     """
     try:
         with open(path, 'rb') as file:
@@ -552,9 +552,10 @@ def run_train_coordinator(
         drop_list: List[str],
         classes_metric_list: List[str],
         cast_type_map: Optional[dict],
+        search_file_ext: str,
         logger: Optional[logging.Logger] = None,
         mask: Optional[str] = None,
-        file_ext: str = ".pq"
+
 ):
     """
     Запускает процесс обучения основного пайплайна на обучающих данных.
@@ -565,7 +566,8 @@ def run_train_coordinator(
         temp_data_path (str): Путь к папке для временного сохранения обработанных чанков данных.
         pre_features (List[str]): Список колонок исходных признаков, которые нужно оставить при загрузке данных.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
-        pattern (str): Маска расширения для поиска файлов.
+        pattern (str): Маска расширения для поиска файлов. Отличается от search_file_ext даже
+            при одном и том же расширении.
         target_path (str): Путь к CSV-файлу с целевой переменной (таргетом).
         train_size (float): Доля обучающей выборки (от 0 до 1).
         seed_split_dataset (int): Seed для разбиения на train/test (гарантирует воспроизводимость).
@@ -597,32 +599,30 @@ def run_train_coordinator(
         cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип},
             где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
             Если None, типы не приводятся.
+        search_file_ext (str): Расширение файлов для поиска (например, ".csv", ".pq").
+            Отличается от pattern даже при одном и том же расширении.
         logger (Optional[logging.Logger], default=None): Логгер для сообщений.
             Если None (по умолчанию), логирование этапов данной функции будет отключено.
         mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
-        file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
-            По умолчанию ".pq".
-
 
     Последовательность действий:
-        - Загружает основной исходный датасет с помощью функции load_dataset.
+        - Загружает исходный датасет с помощью функции load_dataset.
         - Загружает целевые значения и разделяет датасет на обучающую и тестовую выборки
           с помощью функции split_dataset_by_target.
         - Собирает и обучает полный pipeline (с препроцессингом, feature engineering и классификатором)
           на тренировочной части данных.
-        - Сериализует обученный пайплайн в файл, путь к которому задаётся аргументом path.
+        - Сериализует обученный пайплайн в файл, путь к которому задаётся аргументом pipeline_path.
         - Протоколирует все ключевые этапы в логах.
-        - При включении флгов --eval-metrics acc/auc обрабатывает тестовый набор данных и выводит в логи
-            выбранную метрику.
+        - При включении флгов --eval-metrics acc/auc обрабатывает тестовый набор данных,
+             делает предикт, считает и логирует выбранную метрику.
 
-    Возвращаемое значение:
-        - Ничего не возвращает (side-effect: сохранённый файл обученного пайплайна и логи выполнения).
+    Returns:
+        None
 
-    Примечания:
-        - Функция предназначена для запуска в режиме обучения
-            (с флагом --mode train или без флага --mode вообще).
+    Side-effect:
+        сохранённый файл обученного пайплайна и логи выполнения.
     """
     if logger is not None:
         logger.info('Train mode started')
@@ -630,10 +630,9 @@ def run_train_coordinator(
     # Получаем количество файлов в папке с данными
     files_count = check_data_folder_and_count_files(raw_data_path, pattern)[1]
 
-    # Загружаем датасет
     if logger is not None:
         logger.info('Loading raw dataset')
-
+    # Загружаем датасет
     raw_data = load_dataset(
         path_to_dataset=raw_data_path,
         num_parts_to_preprocess_at_once=num_parts_to_preprocess_at_once,
@@ -643,14 +642,14 @@ def run_train_coordinator(
         columns=pre_features,
         cast_type_map=cast_type_map,
         mask=mask,
-        file_ext=file_ext
+        search_file_ext=search_file_ext
     )
 
-    # Загружаем таргет
-    # Делим датасет и таргет на train/test
     if logger is not None:
         logger.info('Splitting dataset into train and test sets')
 
+    # Загружаем таргет
+    # Делим датасет и таргет на train/test
     train_test_dict = split_dataset_by_target(
         dataset=raw_data,
         path_to_target=target_path,
@@ -659,17 +658,15 @@ def run_train_coordinator(
         stratify_col=stratify_col
     )
 
-    # После разделения исходного датафрейма удаляем его
-    # для освобождения RAM
+    # После разделения исходного датафрейма удаляем его для освобождения RAM
     del raw_data
     # Вызываем сборщика мусора
     gc.collect()
 
-
-    # Обучаем пайплайн
     if logger is not None:
         logger.info('Fitting the main pipeline')
 
+    # Обучаем пайплайн
     pipe = main_pipeline(
         sample_frac=sample_frac,
         params_list=params_list,
@@ -691,9 +688,11 @@ def run_train_coordinator(
         train_test_dict['X_train'],
         train_test_dict['y_train']
     )
-    # Сохраним обученный пайплайн в pickle файл
+
     if logger is not None:
         logger.info(f'Saving trained pipeline to: {pipeline_path}')
+
+    # Сохраним обученный пайплайн в pickle файл
     with open(pipeline_path, 'wb') as file:
         pickle.dump(pipe, file)
 
@@ -727,27 +726,26 @@ def run_test_coordinator(
         classes_metric_list: List[str],
         verbose: bool,
         cast_type_map: Optional[dict],
+        search_file_ext: str,
         logger: Optional[logging.Logger] = None,
-        mask: Optional[str] = None,
-        file_ext: str = ".pq"
-
+        mask: Optional[str] = None
 ):
     """
     Выполняет тестирование обученного пайплайна на тестовой выборке.
 
     Args:
-        pipeline_path (str): Путь к сериализованному sklearn pipeline
-            (модель + препроцессинг/feature engineering).
+        pipeline_path (str): Путь к сериализованному sklearn pipeline.
         raw_data_path (str): Путь к директории с "сырыми" parquet-данными для тестирования.
         temp_data_path (str): Директория для временного хранения обработанных файлов.
         pre_features (List[str]): Список названий колонок, которые нужно загрузить из данных.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
-        pattern (str): Маска расширения для поиска файлов.
+        pattern (str): Маска расширения для поиска файлов. Отличается от search_file_ext даже
+            при одном и том же расширении.
         target_path (str): Путь к CSV-файлу с целевой переменной.
         train_size (float): Доля обучающей выборки (от 0 до 1 при разбиении train/test).
         seed_split_dataset (int): Seed для разделения на train/test (гарантирует воспроизводимость).
         stratify_col (str): Имя колонки, по которой выполняется стратификация при разделении.
-        test_predict_path (str): Директория/файл для сохранения предсказаний на тестовых данных.
+        test_predict_path (str): Директория для сохранения предсказаний на тестовых данных.
         predict_file_extension: (str) Тип расширения файлов предиктов для функции make_file_path.
         output (str): Режим вывода предсказаний — 'proba' (вероятности классов)
             или 'predict' (жёсткая классификация).
@@ -755,17 +753,15 @@ def run_test_coordinator(
         classes_metric_list: (List[str]) Список метрик требующих метки классов для расчета.
             Используется в pred_and_metrics_compatible.
         verbose (bool): Включить  прогресс-бары.
-        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип},
-            где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
+        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип}.
             Если None, типы не приводятся.
+        search_file_ext (str): Расширение файлов для поиска (например, ".csv", ".pq").
+            Отличается от pattern даже при одном и том же расширении.
         logger (Optional[logging.Logger], default=None): Логгер для сообщений.
             Если None (по умолчанию), логирование этапов данной функции будет отключено.
         mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
-        file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
-            По умолчанию ".pq".
-
 
     Функция производит следующие этапы:
     - Загружает ранее обученный пайплайн (модель с этапами препроцессинга и feature engineering).
@@ -773,37 +769,41 @@ def run_test_coordinator(
     - Получает предсказания (вероятности классов либо метки классов) на тестовой подвыборке
       в зависимости от режима ('proba' или 'predict'), заданного через аргумент args.output.
     - Сохраняет полученные предсказания в соответствующий файл
-          типа predict__raw__*.csv или proba__raw__*.csv.
+          типа predict_raw_*.csv или proba_raw_*.csv.
     - При включении флгов --eval-metrics acc/auc  выводит в логи выбранную метрику.
-    - Протоколирует каждый ключевой этап с помощью логгера.
+    - Протоколирует каждый ключевой этап с помощью логера.
 
     Исключения:
     - Возникает и логируется ошибка, если обученный пайплайн не найден или не может быть загружен.
 
-    Возвращаемое значение:
-    - Ничего не возвращает (side effect: файлы с предсказаниями и логи).
+    Returns:
+        None
+
+    Side effect:
+        файлы с предсказаниями и логи.
 
     Примечание:
     Для запуска функции необходимо наличие ранее обученного пайплайна
     (обратите внимание на режим обучения --mode train).
     """
+
     if logger is not None:
         logger.info('Test_coordinator started')
-    """
-    Пробуем загрузить обученный пайплайн,
-    если его нет то скрипт остановится с ошибкой.
-    """
+
     if logger is not None:
         logger.info('Loading  the pipeline')
+
+    # Пробуем загрузить обученный пайплайн,
+    # если его нет то скрипт остановится с ошибкой.
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
     files_count = check_data_folder_and_count_files(raw_data_path, pattern)[1]
 
-    # Загружаем датасет
     if logger is not None:
         logger.info('Loading raw dataset')
 
+    # Загружаем датасет
     raw_data = load_dataset(
         path_to_dataset=raw_data_path,
         num_parts_to_preprocess_at_once=num_parts_to_preprocess_at_once,
@@ -813,13 +813,14 @@ def run_test_coordinator(
         columns=pre_features,
         cast_type_map=cast_type_map,
         mask=mask,
-        file_ext=file_ext
+        search_file_ext=search_file_ext
     )
+
+    if logger is not None:
+        logger.info('Splitting dataset into train and test sets')
 
     # Загружаем таргет
     # Делим датасет и таргет на train/test
-    if logger is not None:
-        logger.info('Splitting dataset into train and test sets')
     train_test_dict = split_dataset_by_target(
         dataset=raw_data,
         path_to_target=target_path,
@@ -836,10 +837,12 @@ def run_test_coordinator(
     }
     # Получаем значение из парсера и вызываем соответствующий метод предикта
     handler = output_handlers.get(output)
+
     if logger is not None:
         logger.info(
             f'Getting {"probabilities" if output == "proba" else "classes"} for X_test data'
         )
+
     predictions = handler(
         train_test_dict['X_test']
     )
@@ -885,6 +888,7 @@ def run_test_coordinator(
         predictions=predictions,
         output_path=predict_file_name
     )
+
     if logger is not None:
         logger.info('Test mode completed successfully')
 
@@ -902,40 +906,38 @@ def run_inference_coordinator(
         output_dir: str,
         verbose: bool,
         cast_type_map: Optional[dict],
+        search_file_ext: str,
         logger: Optional[logging.Logger] = None,
-        mask: Optional[str] = None,
-        file_ext: str = ".pq"
+        mask: Optional[str] = None
 ):
-
     """
     Запускает режим инференса: загружает обученный пайплайн, подготавливает новые данные,
     вычисляет предсказания и сохраняет их в файл, поддерживая как вероятностный (proba),
     так и жёсткий (predict) режим вывода.
 
     Args:
-        pipeline_path (str): Путь к сериализованному sklearn pipeline
-            (модель + препроцессинг/feature engineering).
-        data_path (str): Путь к директории с новыми входными данными для инференса.
+        pipeline_path (str): Путь к сериализованному sklearn pipeline.
+        data_path (str): Путь к директории с новыми данными.
         max_files (int, optional): Количество скачиваемых из папки файлов.
             Если не задано то качаются все файлы из папки.
         temp_data_path (str): Директория для временного хранения обработанных частей данных.
-        pre_features (List[str]): Список колонок, которые нужно оставить при загрузке нового датасета.
+        pre_features (List[str]): Список колонок, которые нужно оставить при загрузке датасета.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
-        pattern (str): Маска расширения для поиска файлов.
+        pattern (str): Маска расширения для поиска файлов. Отличается от search_file_ext даже
+            при одном и том же расширении.
         predict_file_extension: (str) Тип расширения файлов предиктов для функции make_file_path
         output (str): Режим вывода предсказаний: 'proba' (вероятности классов) или 'predict' (метки классов).
         output_dir (str): Директория для сохранения итогового файла с предсказаниями.
         verbose (bool): Включить расширенный режим логирования и прогресс-бары.
-        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип},
-            где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
+        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип}.
             Если None, типы не приводятся.
+        search_file_ext (str): Расширение файлов для поиска (например, ".csv", ".pq").
+            Отличается от pattern даже при одном и том же расширении.
         logger (Optional[logging.Logger], default=None): Логгер для сообщений.
             Если None (по умолчанию), логирование этапов данной функции будет отключено.
         mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
-        file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
-            По умолчанию ".pq".
 
     Returns:
         None
@@ -948,14 +950,15 @@ def run_inference_coordinator(
     Для запуска функции необходимо наличие ранее обученного пайплайна
     (обратите внимание на режим обучения --mode train).
     """
+
     if logger is not None:
         logger.info('Inference mode started')
-    """
-    Пробуем загрузить обученный пайплайн,
-    если его нет то скрипт остановится с ошибкой.
-    """
+
     if logger is not None:
         logger.info('Loading  the pipeline')
+
+    # Пробуем загрузить обученный пайплайн,
+    # если его нет то скрипт остановится с ошибкой.
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
@@ -974,10 +977,10 @@ def run_inference_coordinator(
             f'Processing {files_count} files (max_files={max_files}, available={real_files_count})'
         )
 
-    # Загружаем датасет
     if logger is not None:
         logger.info(f'Loading dataset from : {data_path}')
 
+    # Загружаем датасет
     data = load_dataset(
         path_to_dataset=data_path,
         num_parts_to_preprocess_at_once=num_parts_to_preprocess_at_once,
@@ -987,7 +990,7 @@ def run_inference_coordinator(
         columns=pre_features,
         cast_type_map=cast_type_map,
         mask=mask,
-        file_ext=file_ext
+        search_file_ext=search_file_ext
     )
     # Используем dispatch mapping для выбора жесткой или мягкой классификации
     # Создадим словарь режимов вывода
@@ -997,10 +1000,12 @@ def run_inference_coordinator(
     }
     # Получаем значение из парсера и вызываем соответствующий метод предикта
     handler = output_handlers.get(output)
+
     if logger is not None:
         logger.info(
             f'Getting {"probabilities" if output == "proba" else "classes"} for {data_path}'
         )
+
     predictions = handler(data)
 
     # БЛОК СОХРАНЕНИЯ ПРЕДИКТА
@@ -1021,11 +1026,13 @@ def run_inference_coordinator(
         output_dir,
         ext=predict_file_extension
     )
+
     if logger is not None:
         logger.info(
             f'Saving {"probabilities" if output == "proba" else "classes"}\n'
             f'to {predict_file_name}'
         )
+
     # Сохраненяем предикты в .csv
     save_predictions_with_id(
         output_type=output,
@@ -1033,6 +1040,7 @@ def run_inference_coordinator(
         predictions=predictions,
         output_path=predict_file_name
     )
+
     if logger is not None:
         logger.info('Inference mode completed successfully')
 
@@ -1091,8 +1099,6 @@ def run_transform_split_coordinator(
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
 
-
-
     Функция производит следующие этапы:
     - Загружает ранее обученный пайплайн (модель с этапами препроцессинга и feature engineering).
     - Загружает исходный датасет и разделяет его на обучающую и тестовую части.
@@ -1102,8 +1108,11 @@ def run_transform_split_coordinator(
     Исключения:
     - Возникает и логируется ошибка, если обученный пайплайн не найден или не может быть загружен.
 
-    Возвращаемое значение:
-    - Ничего не возвращает (side effect: сохраняет трансформированный файл).
+    Returns:
+        None
+
+    Side effect:
+        сохраняет трансформированный файл.
 
     Примечание:
     Для запуска функции необходимо наличие ранее обученного пайплайна
@@ -1114,12 +1123,12 @@ def run_transform_split_coordinator(
 
     if logger is not None:
         logger.info(f'Transform subset selected: {transform_subset}')
-    """
-    Пробуем загрузить обученный пайплайн,
-    если его нет то скрипт остановится с ошибкой.
-    """
+
     if logger is not None:
         logger.info('Loading  the pipeline')
+
+    # Пробуем загрузить обученный пайплайн,
+    # если его нет то скрипт остановится с ошибкой.
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
@@ -1138,11 +1147,12 @@ def run_transform_split_coordinator(
         columns=pre_features,
         cast_type_map=cast_type_map,
         mask=mask,
-        file_ext=search_file_ext
+        search_file_ext=search_file_ext
     )
 
     if logger is not None:
         logger.info('Splitting dataset into train and test sets')
+
     # Загружаем таргет
     # Делим датасет и таргет на train/test
     train_test_dict = split_dataset_by_target(
@@ -1152,6 +1162,7 @@ def run_transform_split_coordinator(
         random_state=seed_split_dataset,
         stratify_col=stratify_col
     )
+
     # После разделения исходного датафрейма удаляем его
     # для освобождения RAM
     del raw_data
@@ -1243,12 +1254,11 @@ def run_transform_data_coordinator(
     if logger is not None:
         logger.info('Transform_data mode started')
 
-    """
-    Пробуем загрузить обученный пайплайн,
-    если его нет то скрипт остановится с ошибкой.
-    """
     if logger is not None:
         logger.info('Loading  the pipeline')
+
+    # Пробуем загрузить обученный пайплайн,
+    # если его нет то скрипт остановится с ошибкой.
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
@@ -1280,8 +1290,9 @@ def run_transform_data_coordinator(
         columns=pre_features,
         cast_type_map=cast_type_map,
         mask=mask,
-        file_ext=search_file_ext
+        search_file_ext=search_file_ext
     )
+
     # Трансформируем даные
     transformed_data = pipe.transform(data)
 
@@ -1308,18 +1319,15 @@ def run_transform_data_coordinator(
 if __name__ == "__main__":
     # Парсим аргументы из командной строки
     args = parser.parse_args()
-    """
-    Получаем логер из импортированной функции.
-    Настраиваем логирование на основе аргумента.
-    
-    """
+
+    # Получаем логер из импортированной функции.
+    # Настраиваем логирование на основе аргумента.
     logger = setup_logging(args.log_level)
 
-    """
-    Синхронизация verbose с --log-level (True если 'info' или 'debug', False если 'off')
-    lля вывода  баров загрузки в функции load_dataset
-    """
+    # Синхронизация verbose с --log-level (True если 'info' или 'debug', False если 'off')
+    # lля вывода  баров загрузки в функции load_dataset
     verbose = args.log_level in ['info', 'debug']
+
     if logger is not None:
         logger.info('Pipeline started')
 
@@ -1359,9 +1367,9 @@ if __name__ == "__main__":
             float_downcast_columns_list=FLOAT_DOWNCAST_COLUMNS_LIST,
             drop_list=DROP_LIST,
             classes_metric_list=CLASSES_METRIC_LIST,
+            search_file_ext=SEARCH_FILE_EXTENSION,
             cast_type_map=CAST_TYPE_MAP,
-            logger=logger,
-            file_ext=SEARCH_FILE_EXTENSION
+            logger=logger
         ),
         'test': lambda: run_test_coordinator(
             pipeline_path=PIPELINE_PATH,
@@ -1380,9 +1388,9 @@ if __name__ == "__main__":
             eval_metrics=args.eval_metrics,
             classes_metric_list=CLASSES_METRIC_LIST,
             verbose=verbose,
+            search_file_ext=SEARCH_FILE_EXTENSION,
             cast_type_map=CAST_TYPE_MAP,
             logger=logger,
-            file_ext=SEARCH_FILE_EXTENSION
         ),
         'inference': lambda: run_inference_coordinator(
             pipeline_path=PIPELINE_PATH,
@@ -1396,9 +1404,9 @@ if __name__ == "__main__":
             output=args.output,
             output_dir=args.output_dir,
             verbose=verbose,
+            search_file_ext=SEARCH_FILE_EXTENSION,
             cast_type_map=CAST_TYPE_MAP,
-            logger=logger,
-            file_ext=SEARCH_FILE_EXTENSION
+            logger=logger
         ),
         'transform_split': lambda: run_transform_split_coordinator(
             pipeline_path=PIPELINE_PATH,
@@ -1415,8 +1423,9 @@ if __name__ == "__main__":
             cast_type_map=CAST_TYPE_MAP,
             output_dir=TRANSFORM_DATA_PATH,
             transform_subset=args.transform_subset,
-            logger=logger,
-            file_ext=SEARCH_FILE_EXTENSION
+            search_file_ext=SEARCH_FILE_EXTENSION,
+            save_file_ext=SAVE_FILE_EXTENSION,
+            logger=logger
         ),
         'transform_data': lambda: run_transform_data_coordinator(
             pipeline_path=PIPELINE_PATH,
@@ -1438,5 +1447,6 @@ if __name__ == "__main__":
     # запустим соответствующий режим пайплайна
     handler = mode_handlers.get(args.mode)
     handler()
+
     if logger is not None:
         logger.info("Pipeline completed successfully")
