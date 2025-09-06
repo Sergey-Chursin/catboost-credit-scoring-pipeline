@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def cast_columns_by_map(
         df: pd.DataFrame,
-        cast_type_map: Dict[str, str]
+        cast_type_map: Dict[str, str] = None
 ) -> pd.DataFrame:
     """
     Меняет типы DataFrame-колонок в соответствии с заданным словарём.
@@ -35,11 +35,15 @@ def cast_columns_by_map(
 
     Args:
         df (pd.DataFrame): Исходный DataFrame.
-        cast_type_map (dict): Словарь соответствий {имя_колонки(str): тип_данных(str)}.
+        cast_type_map (dict, optional): Словарь соответствий {имя_колонки(str): тип_данных(str)}.
 
     Returns:
         pd.DataFrame: DataFrame с приведёнными типами указанных колонок.
     """
+    # Если словарь типов не задан — просто возвращаем исходный DataFrame
+    if cast_type_map is None:
+        return df
+
     for col, dtype in cast_type_map.items():
         if col in df.columns:
             try:
