@@ -9,7 +9,7 @@ from preprocessing import (
 )
 
 
-def test_convert_all_to_numeric_pipeline():
+def test_convert_all_to_numeric_preprocessing():
     """
     Проверка, что функция корректно приводит все колонки DataFrame к числовому типу (float),
     нечисловые значения становятся NaN.
@@ -29,29 +29,38 @@ def test_convert_all_to_numeric_pipeline():
     assert np.isnan(result['value'][1])
 
 
-def test_convert_all_to_int_pipeline_success():
+def test_cast_columns_by_map_preprocessing_success():
     """
     Проверяет, что DataFrame без NaN после вызова функции становится с типом int.
     """
     df = pd.DataFrame({
             'a': [1., 2., 3.],
-            'b': [0., -3., 14.]
+            'b': [0., -3.3, 14.],
+            'c': [5, 3.3, 8]
         })
-    result = cast_columns_by_map_preprocessing(df)
-    assert result['a'].dtype == int
-    assert result['b'].dtype == int
+    result = cast_columns_by_map_preprocessing(
+        df,
+        cast_type_map={
+        'a': 'int32',
+        'b': 'float64',
+        'c': 'str'
+        }
+    )
+    assert np.issubdtype(result['a'].dtype, np.integer)
+    assert np.issubdtype(result['b'].dtype, np.floating)
+    assert result['c'].dtype == object
     assert (result['a'] == [1, 2, 3]).all()
-    assert (result['b'] == [0, -3, 14]).all()
+    assert (result['b'] == [0., -3.3, 14.]).all()
 
 
-def test_convert_all_to_int_pipeline_with_nan_raises():
+def test_cast_columns_by_map_preprocessing_with_nan_raises():
     """
     Проверяет, что при наличии NaN в DataFrame функция вызывает ValueError.
     """
     df_with_nan = pd.DataFrame({'a': [1., np.nan, 3.]})
     # Используем контекстный менеджер проверяющий вызов ошибки при запуске функции
     with pytest.raises(ValueError):
-        cast_columns_by_map_preprocessing(df_with_nan)
+        cast_columns_by_map_preprocessing(df_with_nan, cast_type_map={})
 
 
 def test_drop_duplicates_pipeline():
@@ -117,7 +126,7 @@ def test_preprocessing_pipeline_sample():
     imputer.fit(out)
     out = imputer.transform(out)
     # Преобразуем к int
-    out = cast_columns_by_map_preprocessing(out)
+    out = cast_columns_by_map_preprocessing(out, cast_type_map={})
     # Удаляем дубликаты
     out = drop_duplicates_preprocessing(out)
 
