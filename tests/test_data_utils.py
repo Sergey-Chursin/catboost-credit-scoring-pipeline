@@ -6,7 +6,7 @@ import pytest
 
 # Импортируем тестируемые функции
 from data_utils import (
-    load_parquet_chunks,
+    load_data_chunks,
     load_dataset,
     split_dataset_by_target,
     split_target_only,
@@ -50,13 +50,13 @@ def parquet_test_dir(tmp_path):
 
 def test_load_parquet_chunks_reads_selected_parts(parquet_test_dir):
     """
-    Проверяем, что load_parquet_chunks:
+    Проверяем, что load_data_chunks:
     1. Читает нужное количество файлов
     2. Объединяет их в один DataFrame
     3. Работает с ограничением по колонкам
     """
     # Читаем только 2 партиции, начиная с первой
-    df = load_parquet_chunks(
+    df = load_data_chunks(
         path_to_dataset=parquet_test_dir,
         start_from=1,
         num_parts_to_read=2,
@@ -169,7 +169,7 @@ def test_make_file_path_creates_expected_name():
         ext="csv"
     )
     # Имя файла должно содержать predict__raw__ и .csv
-    assert "predict__raw__" in os.path.basename(output_path)
+    assert "predict_raw_" in os.path.basename(output_path)
     assert output_path.endswith(".csv")
 
 
