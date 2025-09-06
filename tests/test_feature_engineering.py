@@ -7,7 +7,7 @@ from feature_engineering import (
     definite_value_proportion_features_pipeline,
     from_is_zero_prop_1_create_sum_prop_1_feature_pipeline,
     mean_value_frequency_feature_pipeline,
-    drop_columns_drop_duplicates_pipeline,
+    drop_duplicates_pipeline,
     pre_since_opened_sum_mean_repeated_pipeline
 )
 
@@ -114,7 +114,7 @@ def test_pre_since_opened_sum_mean_repeated_pipeline():
     assert all(np.isclose(result.query("id==1")["pre_since_opened_repeated_prop"], 1/3))
     assert all(np.isclose(result.query("id==2")["pre_since_opened_repeated_prop"], 0.0))
 
-def test_drop_columns_drop_duplicates_pipeline():
+def test_drop_duplicates_pipeline():
     """
     Проверяет, что функция удаляет заданные колонки, дубликаты по id и сам id.
     """
@@ -123,10 +123,9 @@ def test_drop_columns_drop_duplicates_pipeline():
         "a": [10, 20, 30],
         "b": [100, 200, 300]
     })
-    result = drop_columns_drop_duplicates_pipeline(df.copy(), columns_list=["a"])
-    # После удаления колонки 'a', дубликатов по id и самой 'id', остаётся только одна колонка 'b'
-    assert 'a' not in result.columns
+    result = drop_duplicates_pipeline(df.copy())
+    # После удаления дубликатов по id и самой 'id', остаётся только колонки 'a' и 'b'
     assert 'id' not in result.columns
-    assert list(result.columns) == ['b']
+    assert list(result.columns) == ['a', 'b']
     # Остаётся только 2 строки (по числу уникальных id)
     assert result.shape[0] == 2

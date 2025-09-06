@@ -235,7 +235,7 @@ enc_paym_avg_0_years_diff
 def mean_value_frequency_feature_pipeline(
         df: pd.DataFrame,
         columns_list: List[str],
-        drop_list: List[str]
+        drop_list: List[str] = None
 ) -> pd.DataFrame:
     """
     Cоздаёт новые агрегированные признаки,
@@ -248,7 +248,7 @@ def mean_value_frequency_feature_pipeline(
     Args:
         df: (pd.DataFrame)  Исходный DataFrame с признаками из columns_list.
         columns_list: (List[str]) Список столбцов, для которых считаем среднюю частоту значений
-        drop_list: List[str]: Список уже не нужных признаков,
+        drop_list(List[str], optional): Список уже не нужных признаков,
             для удаления из датафрейма
 
     Returns:
@@ -286,10 +286,11 @@ def mean_value_frequency_feature_pipeline(
         del freq_series, bin_freq
         gc.collect()
 
-    logger.info("Drop columns")
-    # Удаляем уже не нужные колонки
-    df = df.drop(drop_list, axis=1)
-    logger.info(f"DataFrame shape after drop(): {df.shape}")
+    # Если передан список колонок на удаление
+    if drop_list is not None:
+        # Удаляем уже не нужные колонки
+        df = df.drop(drop_list, axis=1)
+        logger.info(f"DataFrame shape after drop(): {df.shape}")
 
     return df
 
@@ -298,7 +299,7 @@ def mean_value_frequency_feature_pipeline(
 def definite_value_proportion_features_pipeline(
         df: pd.DataFrame,
         features_dictionary: Dict[str, Any],
-        float_downcast_columns_list: List[str]
+        float_downcast_columns_list: List[str] = None
 ) -> pd.DataFrame:
     """
     Создаёт и добавляет в датафрейм новые частотные признаки
@@ -314,7 +315,7 @@ def definite_value_proportion_features_pipeline(
         df : Исходный DataFrame, содержащий необходимые признаки и колонку 'rn_max'.
         features_dictionary: Dict[str, Any] - Словарь где ключами являются названия колонок,
             а значениями уникальные значения колонки которые требуется обработать.
-        float_downcast_columns_list: List[str]: Список колонок  тип которых можно
+        float_downcast_columns_list (List[str], optional) : Список колонок  тип которых можно
             безопасно понизить с float64 до float32 без потери информативности
             из-за округления значений.
 
@@ -360,9 +361,11 @@ def definite_value_proportion_features_pipeline(
             # Выведем  тип новой колоноки
             logger.info(f"New column type is: {df[new_col].dtype}")
 
-            # По условию меняем тип колонки с float64 на float32
-            if new_col in float_downcast_columns_list:
-                df[new_col] = df[new_col].astype('float32')
+            #  Если передан список для смены типов колонок
+            if float_downcast_columns_list is not None:
+                # По условию меняем тип колонки с float64 на float32
+                if new_col in float_downcast_columns_list:
+                    df[new_col] = df[new_col].astype('float32')
 
             # Удаляем маску
             del mask
