@@ -86,7 +86,7 @@ def cast_columns_by_map_preprocessing(
     # но всё же введём проверку на всякий случай.
     if df.isnull().any().any():
         raise ValueError(
-            "Found NaN values in DataFrame. All missing values must be imputed before converting to int."
+            "Found NaN values in DataFrame. All missing values must be imputed before converting."
         )
     for col, dtype in cast_type_map.items():
         if col in df.columns:

@@ -30,8 +30,12 @@ def test_main_pipeline_returns_pipeline():
         seed=42,
         shuffle=True,
         prop_features_dict={"f": 1},
+        float_downcast_columns_list=[],
         mean_freq_source_list=["mean_f"],
+        drop_list_mean_value_frequency_feature=[],
         drop_list=["to_drop"],
+        drop_list_enc_paym_norm_summ_diff=[],
+        cast_type_map={},
         logger=None
     )
 
@@ -140,7 +144,12 @@ def test_run_train_coordinator_full_cycle(
         mean_freq_source_list=["f"],
         drop_list=["d"],
         classes_metric_list=["acc"],
-        logger=None
+        logger=None,
+        drop_list_enc_paym_norm_summ_diff=["a"],
+        drop_list_mean_value_frequency_feature=["b"],
+        float_downcast_columns_list=[],
+        cast_type_map={},
+        search_file_ext='.csv'
     )
     # Проверяем что вызывался main_pipeline
     # called - вернёт True если метод был вызван
@@ -207,7 +216,9 @@ def test_run_test_coordinator_flow(
         eval_metrics="acc",
         classes_metric_list=["acc"],
         verbose=False,
-        logger=None
+        logger=None,
+        cast_type_map={},
+        search_file_ext='.csv'
     )
     # Проверяем что пайплайн загружается с правильным путём
     mock_load_pipe.assert_called_once_with("path.pkl")
@@ -260,7 +271,10 @@ def test_run_inference_coordinator_flow(
         output="proba",
         output_dir="any_folder",
         verbose=False,
-        logger=None
+        logger=None,
+        cast_type_map={},
+        search_file_ext='.csv',
+        max_files=1
     )
     # Проверяем, что пайплайн действительно загружался с нужным путём
     mock_load_pipe.assert_called_once_with("path.pkl")

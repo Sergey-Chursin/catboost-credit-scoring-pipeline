@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 import pytest
 from preprocessing import (
-    convert_all_to_numeric_pipeline,
-    convert_all_to_int_pipeline,
-    drop_duplicates_pipeline,
+    convert_all_to_numeric_preprocessing,
+    cast_columns_by_map_preprocessing,
+    drop_duplicates_preprocessing,
     SampleMedianImputer
 )
 
@@ -18,7 +18,7 @@ def test_convert_all_to_numeric_pipeline():
         'id': ['1', '2', '3'],
         'value': ['42.5', 'not_a_num', '10']
     })
-    result = convert_all_to_numeric_pipeline(df)
+    result = convert_all_to_numeric_preprocessing(df)
     # Все данные стали float-типами, нечисловое значение стало NaN
     # функция np.issubdtype(dtype, np.number) возвращает True,
     # если тип данных столбца — любой числовой тип (целый, дробный, np.float32, np.float64, np.int64 и т.д.)
@@ -37,7 +37,7 @@ def test_convert_all_to_int_pipeline_success():
             'a': [1., 2., 3.],
             'b': [0., -3., 14.]
         })
-    result = convert_all_to_int_pipeline(df)
+    result = cast_columns_by_map_preprocessing(df)
     assert result['a'].dtype == int
     assert result['b'].dtype == int
     assert (result['a'] == [1, 2, 3]).all()
@@ -51,7 +51,7 @@ def test_convert_all_to_int_pipeline_with_nan_raises():
     df_with_nan = pd.DataFrame({'a': [1., np.nan, 3.]})
     # Используем контекстный менеджер проверяющий вызов ошибки при запуске функции
     with pytest.raises(ValueError):
-        convert_all_to_int_pipeline(df_with_nan)
+        cast_columns_by_map_preprocessing(df_with_nan)
 
 
 def test_drop_duplicates_pipeline():
@@ -59,7 +59,7 @@ def test_drop_duplicates_pipeline():
     Проверяет, что функция удаляет полностью одинаковые строки.
     """
     df = pd.DataFrame({'a': [1, 1, 2], 'b': [5, 5, 6]})
-    result = drop_duplicates_pipeline(df)
+    result = drop_duplicates_preprocessing(df)
     # Должны остаться только уникальные строки
     assert len(result) == 2
     assert sorted(result['a'].tolist()) == [1, 2]
@@ -111,15 +111,15 @@ def test_preprocessing_pipeline_sample():
     })
 
     #  Преобразуем к числовым
-    out = convert_all_to_numeric_pipeline(df)
+    out = convert_all_to_numeric_preprocessing(df)
     #  Импутируем NaN
     imputer = SampleMedianImputer(sample_frac=0.5, random_state=0)
     imputer.fit(out)
     out = imputer.transform(out)
     # Преобразуем к int
-    out = convert_all_to_int_pipeline(out)
+    out = cast_columns_by_map_preprocessing(out)
     # Удаляем дубликаты
-    out = drop_duplicates_pipeline(out)
+    out = drop_duplicates_preprocessing(out)
 
     # Проверка: нет NaN, нет дубликатов
     assert not out.isnull().any().any()
