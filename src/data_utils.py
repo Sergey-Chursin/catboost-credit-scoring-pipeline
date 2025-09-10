@@ -264,15 +264,20 @@ def split_dataset_by_target(
         random_state=random_state,
         stratify=target[stratify_col])
 
+    # Отсортируем результат по id
+    y_train = y_train.sort_values(by='id').reset_index(drop=True)
+    y_test = y_test.sort_values(by='id').reset_index(drop=True)
+
     # Забираем наборы id из train/test
     train_id = y_train['id'].values
     test_id = y_test['id'].values
 
     # На основе наборов id делим исходный датасет на train/test части
-    X_train = dataset[dataset['id'].isin(train_id)].reset_index(drop=True)
-    X_test = dataset[dataset['id'].isin(test_id)].reset_index(drop=True)
+    # сортируем для приведения к порядку идентичному с id таргета
+    X_train = dataset[dataset['id'].isin(train_id)].sort_values(by='id').reset_index(drop=True)
+    X_test = dataset[dataset['id'].isin(test_id)].sort_values(by='id').reset_index(drop=True)
 
-    # Сбросим индексы для приведения к единому виду с X_train/X_test
+    # Сбросим индексы наборов таргета для приведения к единому виду с X_train/X_test
     y_train = y_train.reset_index(drop=True)[stratify_col]
     y_test = y_test.reset_index(drop=True)[stratify_col]
 
