@@ -1,69 +1,56 @@
-import logging
 import argparse
-import pickle
-import gc
 import datetime
-from typing import Any, Optional, List, Dict
+import gc
+import logging
+import pickle
 from functools import partial
+from typing import Any, Optional, List, Dict
 
 import numpy as np
-
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 
+from classifier import CatBoostEnsembleClassifier
 from config import (
-    SAMPLE_FRAC,
-    PIPELINE_PATH,
-    PARAMS_LIST,
-    WEIGHTS_LIST,
-    INFERENCE_OUTPUT_DIR,
-    PRE_FEATURES,
-    RAW_DATA_PATH,
-    TEMP_DATA_PATH,
-    TARGET_PATH,
-    TRAIN_SIZE,
-    SEED_SPLIT_DATASET,
-    STRATIFY_COL,
-    TEST_PREDICT_PATH,
-    THRESHOLD,
     CAT_FEATURES,
-    N_SPLITS,
-    SEED,
-    SHUFFLE,
-    PROP_FEATURES_DICT,
-    MEAN_FREQ_SOURCE_LIST,
-    DROP_LIST,
-    PARQUET_FILE_PATTERN,
-    CLASSES_METRIC_LIST,
-    SAVE_FILE_EXTENSION,
     CAST_TYPE_MAP,
-    SEARCH_FILE_EXTENSION,
+    CLASSES_METRIC_LIST,
+    DROP_LIST,
     DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF,
     DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE,
     FLOAT_DOWNCAST_COLUMNS_LIST,
-    TRANSFORM_DATA_PATH
+    INFERENCE_OUTPUT_DIR,
+    MEAN_FREQ_SOURCE_LIST,
+    N_SPLITS,
+    PARQUET_FILE_PATTERN,
+    PARAMS_LIST,
+    PIPELINE_PATH,
+    PRE_FEATURES,
+    PROP_FEATURES_DICT,
+    RAW_DATA_PATH,
+    SAMPLE_FRAC,
+    SAVE_FILE_EXTENSION,
+    SEARCH_FILE_EXTENSION,
+    SEED,
+    SEED_SPLIT_DATASET,
+    SHUFFLE,
+    STRATIFY_COL,
+    TARGET_PATH,
+    TEST_PREDICT_PATH,
+    THRESHOLD,
+    TEMP_DATA_PATH,
+    TRANSFORM_DATA_PATH,
+    TRAIN_SIZE,
+    WEIGHTS_LIST
 )
-
 from data_utils import (
-    load_dataset,
-    split_dataset_by_target,
     check_data_folder_and_count_files,
     make_file_path,
-    save_predictions_with_id
+    load_dataset,
+    save_predictions_with_id,
+    split_dataset_by_target
 )
-
-from memory_utils import memory_checkpoint
-
 from evaluate_metrics import compute_and_log_metrics
-
-from log_config import setup_logging
-
-from preprocessing import (
-    SampleMedianImputer,
-    convert_all_to_numeric_preprocessing,
-    cast_columns_by_map_preprocessing,
-    drop_duplicates_preprocessing
-)
 
 from feature_engineering import (
     rn_max_feature_pipeline,
@@ -76,9 +63,16 @@ from feature_engineering import (
     drop_columns_pipeline,
     drop_duplicates_pipeline
 )
+from log_config import setup_logging
 
-from classifier import CatBoostEnsembleClassifier
+from memory_utils import memory_checkpoint
 
+from preprocessing import (
+    cast_columns_by_map_preprocessing,
+    convert_all_to_numeric_preprocessing,
+    drop_duplicates_preprocessing,
+    SampleMedianImputer
+)
 """
 Настраиваем парсер аргументов для CLI-запуска.
 Это позволяет запускать скрипт с флагами:
@@ -363,8 +357,8 @@ def main_pipeline(
                     partial(
                         cast_columns_by_map_preprocessing,
                         cast_type_map=cast_type_map
+                    )
                 )
-            )
             ),
             (
                 'memory_checkpoint_2',
