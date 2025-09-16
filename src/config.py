@@ -47,6 +47,8 @@ SAMPLE_FRAC = 0.1
 # Путь сохранения обученного пайплайна
 PIPELINE_PATH = os.path.join(PROJECT_ROOT, 'models', 'main_pipeline.pkl')
 
+DEMO_PIPELINE_PATH = os.path.join(PROJECT_ROOT, 'models', 'demo_pipeline.pkl')
+
 # Путь сохранения предиктов test_coordinator
 TEST_PREDICT_PATH = os.path.join(PROJECT_ROOT, 'predictions')
 
@@ -519,12 +521,12 @@ PARAMS_LIST = [
 AUC моделей фолдов.
 """
 WEIGHTS_LIST = [
-    0.7576036850511159,
-    0.7554545982995526,
-    0.7532810994057619,
-    0.7546988571803108,
-    0.7524269260453276,
-    0.7546930331964138
+     0.7558470790046106,
+     0.7541369034301536,
+     0.7517121820944949,
+     0.7529815101963229,
+     0.7508019090111355,
+     0.7530959167473436
 ]
 
 """
@@ -532,4 +534,4 @@ WEIGHTS_LIST = [
 Вычисляется в roc_curve_and_treshholds_selections.ipynb 
 в главе Optimal Thresholds selection.
 """
-THRESHOLD = 0.49642
+THRESHOLD = 0.48276
