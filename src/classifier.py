@@ -12,7 +12,7 @@ from sklearn.model_selection import StratifiedKFold
 
 class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
     """
-    Ансамблевый классификатор на основе CatBoost, обучающий N моделей
+    Бинарный ансамблевый классификатор на основе CatBoost, обучающий N моделей
     на разных разбиениях данных и финальную модель на полном наборе данных.
     Чтобы повысить устойчивость и качество предсказаний
     за счёт усреднения результатов.

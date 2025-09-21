@@ -84,7 +84,7 @@ def load_data_chunks(
         mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
-        search_file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
+        search_file_ext (str, optional): Расширение файлов для поиска: ".csv", ".pq", ".parquet").
             По умолчанию ".pq".
 
     Returns:
@@ -117,6 +117,15 @@ def load_data_chunks(
     for chunk in chunks:
         logger.info(chunk)
 
+    # Выбираем функцию пандас для закачки файлов согласно переданному расширению
+    ext_to_reader = {
+        '.pq': lambda path, cols: pd.read_parquet(path, columns=cols),
+        '.parquet': lambda path, cols: pd.read_parquet(path, columns=cols),
+        '.csv': lambda path, cols: pd.read_csv(path, usecols=cols)
+        # можно добавить другие форматы
+    }
+    reader = ext_to_reader[search_file_ext]
+
     # Читаем parquet-файлы по указанному батчу и накапливаем DataFrame'ы
     for chunk_path in tqdm(
         chunks,
@@ -125,7 +134,10 @@ def load_data_chunks(
         mininterval=5         # обновление прогресса раз в 5 секунд
     ):
         logger.info(f'Reading chunk: {chunk_path}')
-        chunk = pd.read_parquet(chunk_path, columns=columns)
+        chunk = reader(
+            path=chunk_path,
+            cols=columns
+        )
         res.append(chunk)
 
     # Объединяем все прочитанные DataFrame в один
