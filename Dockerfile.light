@@ -1,3 +1,5 @@
+# ЛЁГКАЯ ВЕРСИЯ ОБРАЗА, ДЛЯ CLI-ЗАПУСКА И ТЕСТОВ
+
 # Используем официальный базовый образ с установленным Miniconda3
 FROM continuumio/miniconda3
 
@@ -18,13 +20,24 @@ ENV PATH /opt/conda/envs/project_ml_env/bin:$PATH
 # Устанавливаем рабочую директорию внутри контейнера — все команды и файлы будут относиться к /app
 WORKDIR /app
 
-# Копируем все файлы из текущей папки на хосте в /app в контейнере
-COPY . /app
+# Копируем минимум файлов для CLI-запуска и тестов
+COPY data /app/data
+COPY src /app/src
+COPY predictions /app/predictions
+# Создаём новую папку models чтобы не копировать все модели из существующей models
+RUN mkdir -p /app/models
+# Копируем в неё обученный пайплайн
+COPY models/main_pipeline.pkl /app/models/
+# Добавляем тесты
+COPY tests/ /app/tests
+COPY pytest.ini /app/
 
-# Открываем порт 8888 для доступа к Jupyter Notebook
-EXPOSE 8888
 
 # По умолчанию контейнер запускает интерактивную оболочку bash с уже активированным окружением
 CMD ["bash"]
+
+# Чистим кеш conda
+RUN conda clean -afy
+
 
 # Контейнер работает на стандартном системном аллокаторе glibc (ptmalloc2) — ничего менять нельзя, все механизмы управления памятью функций модуля memory_utils.py(malloc_trim) будут работать корректно.

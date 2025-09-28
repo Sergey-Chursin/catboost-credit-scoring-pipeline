@@ -1,24 +1,30 @@
+# СКОПИРОВАННЫЕ ИЗ .GITIGNORE
 # Системные файлы macOS и Jupyter
 **/.DS_Store
 **/.ipynb_checkpoints/
 
+
 # Папки автоматически создаваемые CatBoost
 **/catboost_info/
+
 
 # Промежуточные результаты обработки данных
 data/processed/*
 # Исключение чтобы папка отслеживалась
 !data/processed/.gitkeep
 
+
 # технические файлы
 data/temp/*
 # Исключение чтобы папка отслеживалась
 !data/temp/.gitkeep
 
+
 # Предикты на новых данных
 predictions/inference/*
 # Исключение чтобы папка отслеживалась
 !predictions/inference/.gitkeep
+
 
 # Временные файлы Python
 **/__pycache__/
@@ -30,11 +36,31 @@ predictions/inference/*
 # Настройки IDE
 .idea/
 
-# Virtual environments and build artifacts (игнорируем локальные окружения, build-файлы и метаданные)
+
+# Virtual environments and build artifacts
 venv/
 *.env
 *.egg-info/
 build/
 
+
 # Кеш тестов
 .pytest_cache/
+
+
+# ДОБАВЛЕННО НЕПОСРЕДСТВЕННО ДЛЯ .DOCKERIGNORE
+# Git и конфиги
+.git/
+.gitignore
+.gitattributes
+.dockerignore
+
+
+# Документация и иллюстрации
+README.md
+images/
+resources/
+
+# Предикты
+predictions/**/*.csv
+predictions/*.csv

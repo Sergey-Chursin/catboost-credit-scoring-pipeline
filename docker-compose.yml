@@ -1,0 +1,29 @@
+# Внимание!
+# Проектные директории не указаны в секции volumes специально,
+# чтобы все изменения происходили исключительно в файловой системе контейнера.
+# Содержимое хоста не будет синхронизироваться с контейнером.
+# Если в контейнере произойдут изменения — они не затронут файлы на диске хоста,
+# и наоборот. Это обеспечивает репродуцируемость окружения и чистоту слоёв.
+version: '3.8'
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: prod_api
+    ports:
+      - "8000:8000"
+
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile.jupyter
+    container_name: jupyter_full
+    ports:
+      - "8888:8888"
+
+  light:
+    build:
+      context: .
+      dockerfile: Dockerfile.light
+    container_name: cli_light
