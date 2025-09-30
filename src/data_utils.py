@@ -154,7 +154,7 @@ def load_data_chunks(
 def load_dataset(
         path_to_dataset: str,
         num_parts_total: int,
-        save_to_path: str,
+        save_to_path: Optional[str] = None,
         num_parts_to_preprocess_at_once: int = 1,
         verbose: bool = False,
         columns: Optional[List[str]] = None,
