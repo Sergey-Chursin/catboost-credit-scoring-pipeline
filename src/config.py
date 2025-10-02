@@ -268,8 +268,8 @@ DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF = [
 
 """
 Спиcок признаков исходного датасета
-для создания фичей средней частотности функцией
-mean_value_frequency_feature_pipeline
+для создания фичей средней частотности трансформером
+MeanValueFrequencyTransformer
 """
 MEAN_FREQ_SOURCE_LIST = [
     'pre_util',
@@ -289,6 +289,12 @@ MEAN_FREQ_SOURCE_LIST = [
     'enc_loans_account_cur',
     'enc_paym_9'
 ]
+
+"""
+Название столбца используемого для нормализации суммы частотностей 
+в трансформере MeanValueFrequencyTransformer
+"""
+NORMA = 'rn_max'
 
 """
 Список признаков для удаления в функции 
