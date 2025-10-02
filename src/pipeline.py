@@ -11,6 +11,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 
 from classifier import CatBoostEnsembleClassifier
+from frequency_transformer import MeanValueFrequencyTransformer
 from config import (
     CAT_FEATURES,
     CAST_TYPE_MAP,
@@ -22,6 +23,7 @@ from config import (
     INFERENCE_OUTPUT_DIR,
     MEAN_FREQ_SOURCE_LIST,
     N_SPLITS,
+    NORMA,
     PARQUET_FILE_PATTERN,
     PARAMS_LIST,
     PIPELINE_PATH,
@@ -57,7 +59,6 @@ from feature_engineering import (
     enc_paym_transcoding_pipeline,
     definite_value_proportion_features_pipeline,
     from_is_zero_prop_1_create_sum_prop_1_feature_pipeline,
-    mean_value_frequency_feature_pipeline,
     enc_paym_norm_group_sum_diff_pipeline,
     pre_since_opened_sum_mean_repeated_pipeline,
     drop_columns_pipeline,
@@ -283,8 +284,9 @@ def main_pipeline(
         seed: int,
         shuffle: bool,
         drop_list_enc_paym_norm_summ_diff: List[str],
+        norma: str,
         mean_freq_source_list: List[str],
-        drop_list_mean_value_frequency_feature: List[str],
+        drop_list_mean_value_frequency: List[str],
         prop_features_dict: Dict[str, Any],
         float_downcast_columns_list: List[str],
         drop_list: List[str],
@@ -311,10 +313,12 @@ def main_pipeline(
         shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
         drop_list_enc_paym_norm_summ_diff: List[str]: Список колонок на удаление в функции
             enc_paym_norm_group_sum_diff_pipeline.
-        mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в функции
-            mean_value_frequency_feature_pipeline.
-        drop_list_mean_value_frequency_feature: List[str]: Список колонок на удаление в функции
-            mean_value_frequency_feature_pipeline.
+        norma (str): Название столбца используемого для нормализации суммы частотностей
+            в трансформере MeanValueFrequencyTransformer.
+        mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в трансформере
+            MeanValueFrequencyTransformer.
+        drop_list_mean_value_frequency: List[str]: Список колонок на удаление в трансформере
+            MeanValueFrequencyTransformer.
         prop_features_dict (Dict[str, Any]): Словарь, определяющий признаки и значения для создания
             пропорциональных фичей в функции definite_value_proportion_features_pipeline.
         float_downcast_columns_list: List[str]: Список колонок  тип которых можно
@@ -380,7 +384,13 @@ def main_pipeline(
             )
         ]
     )
-
+    # Создадим трансформер для feature engineering
+    frequency_transformer = MeanValueFrequencyTransformer(
+        norma=norma,
+        columns=mean_freq_source_list,
+        drop_list=drop_list_mean_value_frequency,
+        logger=logger
+    )
     # Создадим объект классификатора
     classifier = CatBoostEnsembleClassifier(
         params_list=params_list,
@@ -423,13 +433,7 @@ def main_pipeline(
             ),
             (
                 'create_mean_value_frequency_feature',
-                FunctionTransformer(
-                    partial(
-                        mean_value_frequency_feature_pipeline,
-                        columns_list=mean_freq_source_list,
-                        drop_list=drop_list_mean_value_frequency_feature
-                    )
-                )
+                frequency_transformer
             ),
             (
                 'memory_checkpoint_4',
@@ -539,8 +543,9 @@ def run_train_coordinator(
         eval_metric: str,
         verbose: bool,
         drop_list_enc_paym_norm_summ_diff: List[str],
+        norma: str,
         mean_freq_source_list: List[str],
-        drop_list_mean_value_frequency_feature: List[str],
+        drop_list_mean_value_frequency: List[str],
         prop_features_dict: Dict[str, Any],
         float_downcast_columns_list: List[str],
         drop_list: List[str],
@@ -578,10 +583,12 @@ def run_train_coordinator(
         verbose (bool): Включить прогресс-бары.
         drop_list_enc_paym_norm_summ_diff: List[str]: Список колонок на удаление в функции
             enc_paym_norm_group_sum_diff_pipeline.
-        mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в функции
-            mean_value_frequency_feature_pipeline.
-        drop_list_mean_value_frequency_feature: List[str]: Список колонок на удаление в функции
-            mean_value_frequency_feature_pipeline.
+        norma (str): Название столбца используемого для нормализации суммы частотностей
+            в трансформере MeanValueFrequencyTransformer.
+        mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в трансформере
+            MeanValueFrequencyTransformer.
+        drop_list_mean_value_frequency: List[str]: Список колонок на удаление в трансформере
+            MeanValueFrequencyTransformer.
         prop_features_dict (Dict[str, Any]): Словарь, определяющий признаки и значения для создания
             пропорциональных фичей в функции definite_value_proportion_features_pipeline.
         float_downcast_columns_list: List[str]: Список колонок  тип которых можно
@@ -671,8 +678,9 @@ def run_train_coordinator(
         seed=seed,
         shuffle=shuffle,
         drop_list_enc_paym_norm_summ_diff=drop_list_enc_paym_norm_summ_diff,
+        norma=norma,
         mean_freq_source_list=mean_freq_source_list,
-        drop_list_mean_value_frequency_feature=drop_list_mean_value_frequency_feature,
+        drop_list_mean_value_frequency=drop_list_mean_value_frequency,
         prop_features_dict=prop_features_dict,
         float_downcast_columns_list=float_downcast_columns_list,
         drop_list=drop_list,
@@ -1360,8 +1368,9 @@ if __name__ == "__main__":
             eval_metric=args.eval_metrics,
             verbose=verbose,
             drop_list_enc_paym_norm_summ_diff=DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF,
+            norma=NORMA,
             mean_freq_source_list=MEAN_FREQ_SOURCE_LIST,
-            drop_list_mean_value_frequency_feature=DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE,
+            drop_list_mean_value_frequency=DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE,
             prop_features_dict=PROP_FEATURES_DICT,
             float_downcast_columns_list=FLOAT_DOWNCAST_COLUMNS_LIST,
             drop_list=DROP_LIST,
