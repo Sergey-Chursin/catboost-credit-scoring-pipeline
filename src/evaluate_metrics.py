@@ -148,7 +148,7 @@ def compute_and_log_metrics(
         Optional[float]: Значение метрики (ROC AUC или Accuracy) на тестовой выборке,
             либо None, если выбран режим 'off' или флаг не введён.
     """
-    logger.info("Function compute_and_log_metrics started")
+    logger.info("FUNCTION compute_and_log_metrics")
     # Словарь для маппинг диспетчеризации
     eval_metrics_map = {
         'auc': evaluate_auc_score,
