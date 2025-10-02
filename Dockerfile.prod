@@ -21,20 +21,19 @@ ENV PATH /opt/conda/envs/project_ml_env/bin:$PATH
 WORKDIR /app
 
 # Копируем минимум файлов для работы сервиса
-COPY data /app/data
 COPY src /app/src
-COPY predictions /app/predictions
 # Создаём новую папку models чтобы не копировать все модели из существующей models
 RUN mkdir -p /app/models
 # Копируем в неё обученный пайплайн
 COPY models/main_pipeline.pkl /app/models/
+COPY app.py /app/app.py
 
 # Открываем порт для доступа к FastAPI
 EXPOSE 8000
 
-# Пока оставляю запуск bash для проверки, позже для API поменять на CMD ["python", "src/app.py"]
-# По умолчанию контейнер запускает интерактивную оболочку bash с уже активированным окружением
-CMD ["bash"]
+# Запускаем внутри контейнера сервер Uvicorn, который стартует FastAPI-приложение app 
+# из файла app.py, и слушает все входящие подключения на порту 8000 снаружи и внутри контейнера.
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # Чистим кеш conda
 RUN conda clean -afy
