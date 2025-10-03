@@ -5,7 +5,10 @@ import gc
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 
+from decorators import memory_monitor_transformer
 
+
+@memory_monitor_transformer
 class MeanValueFrequencyTransformer(BaseEstimator, TransformerMixin):
     """
     Трансформер для генерации новых признаков, отражающих среднюю частоту (относительную встречаемость)
@@ -43,8 +46,8 @@ class MeanValueFrequencyTransformer(BaseEstimator, TransformerMixin):
         self.mean_freqs = {}
 
     def fit(self, X, y=None):
-        if self.logger is not None:
-            self.logger.info('FREQUENCY TRANSFORMER fit')
+        # if self.logger is not None:
+        #     self.logger.info('FREQUENCY TRANSFORMER fit')
         for col in self.columns:
             # Вычисляем относительную частоту каждого уникального значения в столбце
             self.freq_maps[col] = X[col].value_counts(normalize=True).to_dict()
@@ -55,8 +58,8 @@ class MeanValueFrequencyTransformer(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X):
-        if self.logger is not None:
-            self.logger.info('FREQUENCY TRANSFORMER transform')
+        # if self.logger is not None:
+        #     self.logger.info('FREQUENCY TRANSFORMER transform')
         if self.logger is not None:
             self.logger.info('NEW features')
         # проходим циклом по колонкам из списка
@@ -87,18 +90,18 @@ class MeanValueFrequencyTransformer(BaseEstimator, TransformerMixin):
         return X
 
     def fit_transform(self, X, y=None):
-        if self.logger is not None:
-            self.logger.info('FREQUENCY TRANSFORMER fit_transform')
+        # if self.logger is not None:
+        #     self.logger.info('FREQUENCY TRANSFORMER fit_transform')
         self.fit(X, y)
         return self.transform(X)
 
     def predict(self, X):
-        if self.logger is not None:
-            self.logger.info('FREQUENCY TRANSFORMER predict')
+        # if self.logger is not None:
+        #     self.logger.info('FREQUENCY TRANSFORMER predict')
         return self.transform(X)
 
     def predict_proba(self, X):
-        if self.logger is not None:
-            self.logger.info('FREQUENCY TRANSFORMER predict_proba')
+        # if self.logger is not None:
+        #     self.logger.info('FREQUENCY TRANSFORMER predict_proba')
         return self.transform(X)
 
