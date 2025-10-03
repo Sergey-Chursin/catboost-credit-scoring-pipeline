@@ -5,7 +5,7 @@ import pandas as pd
 
 from sklearn.base import BaseEstimator, TransformerMixin
 
-from decorators import memory_monitor
+from decorators import memory_monitor_function
 
 """
 Функции предобработки датасета.
@@ -46,7 +46,7 @@ from decorators import memory_monitor
 """
 logger = logging.getLogger(__name__)
 
-@memory_monitor
+@memory_monitor_function
 def convert_all_to_numeric_preprocessing(
         df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -67,7 +67,7 @@ def convert_all_to_numeric_preprocessing(
 
     return  df
 
-@memory_monitor
+@memory_monitor_function
 def cast_columns_by_map_preprocessing(
         df: pd.DataFrame,
         cast_type_map: Dict[str, str]
@@ -94,7 +94,7 @@ def cast_columns_by_map_preprocessing(
 
     return df
 
-@memory_monitor
+@memory_monitor_function
 def drop_duplicates_preprocessing(
         df: pd.DataFrame
 ) -> pd.DataFrame:
