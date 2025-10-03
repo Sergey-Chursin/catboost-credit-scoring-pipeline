@@ -125,22 +125,9 @@ async def predict(request: PredictionRequest):
     # Конвертируем список словарей в DataFrame удобный для sklearn
     df = pd.DataFrame.from_records(records)
 
-    print(f"BEFORE pipeline: df.shape = {df.shape}")
-    print(f"BEFORE pipeline: unique IDs = {df['id'].unique()}")
-
-
     # Получаем предикты
     proba = pipeline.predict_proba(df)[:, 1]
     pred = proba >= threshold
-
-    print(f"AFTER pipeline: proba.shape = {proba.shape}")
-    print(f"AFTER pipeline: pred.shape = {pred.shape}")
-    print(f"AFTER pipeline: unique IDs = {df['id'].unique()}")
-
-    # Получаем уникальные ID ДО обработки пайплайном (в том же порядке)
-    unique_ids = df['id'].drop_duplicates().values
-
-    print(f"unique_ids:  {unique_ids}")
 
     # Собираем список словарей по предиктам клиентов
     # Кастуем типы предиктов так json не поддерживает numpy float 64 и int64
