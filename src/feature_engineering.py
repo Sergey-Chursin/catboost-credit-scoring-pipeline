@@ -10,7 +10,7 @@ from memory_utils import (
     heap_trim,
     cgroup_memory_statistic
 )
-from decorators import memory_monitor
+from decorators import memory_monitor_function
 
 """
 Создаём локальный логгер для этого модуля
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # FEATURE ENGINEERING PIPELINE FUNCTIONS
 
 
-@memory_monitor
+@memory_monitor_function
 def rn_max_feature_pipeline(
         df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -49,7 +49,7 @@ def rn_max_feature_pipeline(
 
     return df
 
-@memory_monitor
+@memory_monitor_function
 def enc_paym_transcoding_pipeline(
         df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -79,7 +79,7 @@ def enc_paym_transcoding_pipeline(
     return df
 
 
-@memory_monitor
+@memory_monitor_function
 def enc_paym_norm_group_sum_diff_pipeline(
         df: pd.DataFrame,
         drop_list: List[str]
@@ -231,7 +231,8 @@ enc_paym_avg_0_years_diff
     return df
 
 
-@memory_monitor
+
+@memory_monitor_function
 def mean_value_frequency_feature_pipeline(
         df: pd.DataFrame,
         columns_list: List[str],
@@ -293,7 +294,7 @@ def mean_value_frequency_feature_pipeline(
     return df
 
 
-@memory_monitor
+@memory_monitor_function
 def definite_value_proportion_features_pipeline(
         df: pd.DataFrame,
         features_dictionary: Dict[str, Any],
@@ -381,7 +382,7 @@ def definite_value_proportion_features_pipeline(
     return df
 
 
-@memory_monitor
+@memory_monitor_function
 def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
         df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -409,7 +410,7 @@ def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
     return df
 
 
-@memory_monitor
+@memory_monitor_function
 def pre_since_opened_sum_mean_repeated_pipeline(
         df: pd.DataFrame
 ) -> pd.DataFrame:
@@ -474,7 +475,7 @@ def pre_since_opened_sum_mean_repeated_pipeline(
     return df
 
 
-@memory_monitor
+@memory_monitor_function
 def drop_columns_pipeline(
         df: pd.DataFrame,
         columns_list: List[str]
@@ -506,7 +507,7 @@ def drop_columns_pipeline(
     return  df
 
 
-@memory_monitor
+@memory_monitor_function
 def drop_duplicates_pipeline(
         df: pd.DataFrame
 ) -> pd.DataFrame:
