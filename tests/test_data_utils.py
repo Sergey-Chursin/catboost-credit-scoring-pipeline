@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 # Импортируем тестируемые функции
-from data_utils import (
+from src.data_utils import (
     load_data_chunks,
     load_dataset,
     split_dataset_by_target,

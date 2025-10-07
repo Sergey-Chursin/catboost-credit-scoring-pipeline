@@ -3,7 +3,7 @@ import logging
 from typing import Callable
 import pandas as pd
 
-from memory_utils import (
+from src.memory_utils import (
     rss_process_statistic,
     cgroup_memory_statistic
 )

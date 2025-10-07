@@ -5,7 +5,7 @@ import pandas as pd
 
 from sklearn.base import BaseEstimator, TransformerMixin
 
-from decorators import memory_monitor_function
+from src.decorators import memory_monitor_function
 
 """
 Функции предобработки датасета.

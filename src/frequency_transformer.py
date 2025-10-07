@@ -5,7 +5,7 @@ import gc
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 
-from decorators import memory_monitor_transformer
+from src.decorators import memory_monitor_transformer
 
 
 @memory_monitor_transformer

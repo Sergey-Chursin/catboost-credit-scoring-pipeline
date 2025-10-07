@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-from feature_engineering import (
+from src.feature_engineering import (
     rn_max_feature_pipeline,
     enc_paym_transcoding_pipeline,
     definite_value_proportion_features_pipeline,

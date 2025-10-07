@@ -3,12 +3,12 @@ import pandas as pd
 pd.set_option("display.max_columns", None)
 import json
 import requests
-from config import (
+from src.config import (
     PRE_FEATURES,
     RAW_DATA_PATH,
     TRANSFORM_DATA_PATH
 )
-from data_utils import load_dataset
+from src.data_utils import load_dataset
 
 if __name__ == "__main__":
     data = load_dataset(

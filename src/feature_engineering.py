@@ -5,12 +5,12 @@ import gc
 import numpy as np
 import pandas as pd
 
-from memory_utils import (
+from src.memory_utils import (
     rss_process_statistic,
     heap_trim,
     cgroup_memory_statistic
 )
-from decorators import memory_monitor_function
+from src.decorators import memory_monitor_function
 
 """
 Создаём локальный логгер для этого модуля

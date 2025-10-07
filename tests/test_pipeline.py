@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from sklearn.pipeline import Pipeline
 
-from pipeline import (
+from src.pipeline import (
     main_pipeline,
     load_pipeline,
     run_train_coordinator,
@@ -31,8 +31,9 @@ def test_main_pipeline_returns_pipeline():
         shuffle=True,
         prop_features_dict={"f": 1},
         float_downcast_columns_list=[],
+        norma='rn_max',
         mean_freq_source_list=["mean_f"],
-        drop_list_mean_value_frequency_feature=[],
+        drop_list_mean_value_frequency=[],
         drop_list=["to_drop"],
         drop_list_enc_paym_norm_summ_diff=[],
         cast_type_map={},
@@ -83,11 +84,11 @@ def test_load_pipeline_not_found():
 # Следующий декоратор уже “видит” функцию с одним аргументом и добавляет свой аргумент ещё одним “слоем”.
 # Поэтому самый последний @patch (стоящий ближе к функции) получает первое место среди аргументов теста.
 # Самый верхний @patch добавит аргумент уже к функции, которая и так уже имеет все прежние аргументы.
-@patch("pipeline.main_pipeline")
-@patch("pipeline.split_dataset_by_target")
-@patch("pipeline.load_dataset")
-@patch("pipeline.check_data_folder_and_count_files")
-@patch("pipeline.pickle.dump")
+@patch("src.pipeline.main_pipeline")
+@patch("src.pipeline.split_dataset_by_target")
+@patch("src.pipeline.load_dataset")
+@patch("src.pipeline.check_data_folder_and_count_files")
+@patch("src.pipeline.pickle.dump")
 def test_run_train_coordinator_full_cycle(
         mock_pickle_dump,
         mock_check_count,
@@ -141,12 +142,13 @@ def test_run_train_coordinator_full_cycle(
         eval_metric="off",
         verbose=False,
         prop_features_dict={"feature": 1},
+        norma="rn_max",
         mean_freq_source_list=["f"],
         drop_list=["d"],
         classes_metric_list=["acc"],
         logger=None,
         drop_list_enc_paym_norm_summ_diff=["a"],
-        drop_list_mean_value_frequency_feature=["b"],
+        drop_list_mean_value_frequency=["b"],
         float_downcast_columns_list=[],
         cast_type_map={},
         search_file_ext='.csv'
@@ -161,15 +163,14 @@ def test_run_train_coordinator_full_cycle(
 
 
 # ------- Тест для run_test_coordinator -------------
-@patch("pipeline.load_pipeline")
-@patch("pipeline.check_data_folder_and_count_files")
-@patch("pipeline.load_dataset")
-@patch("pipeline.split_dataset_by_target")
-@patch("pipeline.make_file_path")
-@patch("pipeline.save_predictions_with_id")
-@patch("pipeline.compute_and_log_metrics")
+@patch("src.pipeline.load_pipeline")
+@patch("src.pipeline.check_data_folder_and_count_files")
+@patch("src.pipeline.load_dataset")
+@patch("src.pipeline.split_dataset_by_target")
+@patch("src.pipeline.make_file_path")
+@patch("src.pipeline.save_predictions_with_id")
+@patch("src.pipeline.compute_and_log_metrics")
 def test_run_test_coordinator_flow(
-        # не используется в тесте, но нужен для run_test_coordinator
         mock_compute_metrics,
         mock_save,
         mock_make_file_path,
@@ -231,11 +232,11 @@ def test_run_test_coordinator_flow(
 
 
 # ------- Тест для run_inference_coordinator -------------
-@patch("pipeline.load_pipeline")
-@patch("pipeline.check_data_folder_and_count_files")
-@patch("pipeline.load_dataset")
-@patch("pipeline.make_file_path")
-@patch("pipeline.save_predictions_with_id")
+@patch("src.pipeline.load_pipeline")
+@patch("src.pipeline.check_data_folder_and_count_files")
+@patch("src.pipeline.load_dataset")
+@patch("src.pipeline.make_file_path")
+@patch("src.pipeline.save_predictions_with_id")
 def test_run_inference_coordinator_flow(
         mock_save,
         mock_make_file_path,

@@ -3,7 +3,7 @@ import pandas as pd
 import pytest
 
 # Импортируем тестируемые функции
-from evaluate_metrics import (
+from src.evaluate_metrics import (
     evaluate_auc_score,
     evaluate_accuracy_score,
     pred_and_metrics_compatible,

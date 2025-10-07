@@ -8,7 +8,7 @@ import pandas as pd
 
 from sklearn.metrics import accuracy_score, roc_auc_score
 
-from config import (
+from src.config import (
     TARGET_PATH,
     TRAIN_SIZE,
     SEED_SPLIT_DATASET,
@@ -17,7 +17,7 @@ from config import (
     CLASSES_TEST_PREDICT_PATTERN
 )
 
-from data_utils import split_target_only
+from src.data_utils import split_target_only
 
 """
 Создаём локальный логгер для этого модуля

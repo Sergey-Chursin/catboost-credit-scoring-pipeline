@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import pytest
-from classifier import CatBoostEnsembleClassifier
+from src.classifier import CatBoostEnsembleClassifier
 
 # декораторо @pytest.fixture определяет фикстуру - делает результат функции доступным
 # для использования в тестовых функциях

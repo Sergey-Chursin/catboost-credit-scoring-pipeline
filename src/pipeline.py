@@ -10,9 +10,9 @@ import numpy as np
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 
-from classifier import CatBoostEnsembleClassifier
-from frequency_transformer import MeanValueFrequencyTransformer
-from config import (
+from src.classifier import CatBoostEnsembleClassifier
+from src.frequency_transformer import MeanValueFrequencyTransformer
+from src.config import (
     CAT_FEATURES,
     CAST_TYPE_MAP,
     CLASSES_METRIC_LIST,
@@ -45,16 +45,16 @@ from config import (
     TRAIN_SIZE,
     WEIGHTS_LIST
 )
-from data_utils import (
+from src.data_utils import (
     check_data_folder_and_count_files,
     make_file_path,
     load_dataset,
     save_predictions_with_id,
     split_dataset_by_target
 )
-from evaluate_metrics import compute_and_log_metrics
+from src.evaluate_metrics import compute_and_log_metrics
 
-from feature_engineering import (
+from src.feature_engineering import (
     rn_max_feature_pipeline,
     enc_paym_transcoding_pipeline,
     definite_value_proportion_features_pipeline,
@@ -64,11 +64,11 @@ from feature_engineering import (
     drop_columns_pipeline,
     drop_duplicates_pipeline
 )
-from log_config import setup_logging
+from src.log_config import setup_logging
 
-from memory_utils import memory_checkpoint
+from src.memory_utils import memory_checkpoint
 
-from preprocessing import (
+from src.preprocessing import (
     cast_columns_by_map_preprocessing,
     convert_all_to_numeric_preprocessing,
     drop_duplicates_preprocessing,

@@ -41,12 +41,12 @@ from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from pipeline import load_pipeline
-from config import (
+from src.pipeline import load_pipeline
+from src.config import (
     PIPELINE_PATH,
     THRESHOLD
 )
-from log_config import setup_logging
+from src.log_config import setup_logging
 
 # Создадим объект FastAPI
 app = FastAPI(title="Credit-Scoring API", version="1.0.0")
@@ -180,4 +180,4 @@ async def predict(request: PredictionRequest):
 # Локальный запуск для проверки
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000)
+    uvicorn.run("src.app:app", host="0.0.0.0", port=8000)

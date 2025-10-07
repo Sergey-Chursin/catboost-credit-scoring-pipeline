@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import pytest
-from preprocessing import (
+from src.preprocessing import (
     convert_all_to_numeric_preprocessing,
     cast_columns_by_map_preprocessing,
     drop_duplicates_preprocessing,
