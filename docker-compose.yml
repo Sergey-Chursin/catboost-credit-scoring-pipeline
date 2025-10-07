@@ -16,7 +16,7 @@ services:
       dockerfile: Dockerfile.prod
     container_name: prod_api
     ports:
-      - "8000:8000"
+      - "8000:8000" # Порт для API
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"] #команда curl вызывает эндпоинт /health и завершится с ошибкой, если сервис отвечает не 200 OK
       interval: 30s  # healthcheck запускается каждые 30 секунд
@@ -30,10 +30,14 @@ services:
       dockerfile: Dockerfile.jupyter
     container_name: jupyter_full
     ports:
-      - "8888:8888"
+      - "8888:8888" # Порт для jupyter
+      - "8000:8000" # Порт для API
+
 
   light:
     build:
       context: .
       dockerfile: Dockerfile.light
     container_name: cli_light
+    ports:
+      - "8000:8000" # Порт для API
