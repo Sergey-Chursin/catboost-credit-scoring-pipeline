@@ -11,6 +11,7 @@
 - [Установка и запуск / Getting Started](#установка-и-запуск--getting-started)
   - [Запуск в Conda окружении / Running in a Conda environment](#запуск-в-conda-окружении--running-in-a-conda-environment)
   - [Запуск в Docker-контейнере / Running in a Docker container](#запуск-в-docker-контейнере--running-in-a-docker-container)
+  - [Запуск API сервиса / Running the API service](#запуск-api-сервиса--running-the-api-service)
 - [Структура проекта / Project Structure](#структура-проекта--project-structure)
 - [Особенности реализации / Implementation Details](#особенности-реализации--implementation-details)
   - [Исследовательская часть / Jupyter notebooks](#исследовательская-часть--jupyter-notebooks)
@@ -24,6 +25,7 @@
     - [Кастомный классификатор / Custom Classifier](#кастомный-классификатор--custom-classifier)
     - [Конфигурация и управление / Configuration and management](#конфигурация-и-управление--configuration-and-management)
     - [Оптимизация потребления памяти в Docker-контейнере при лимите 16 Гб RAM](#оптимизация-потребления-памяти-в-docker-контейнере-при-лимите-16-гб-ram)
+  - [Особенности реализации API / API Implementation Details](#особенности-реализации-api--api-implementation-details)
 - [Примеры использования / Usage Examples](#примеры-использования--usage-examples)
   - [Примеры из исследовательской части / Examples from the research section](#примеры-из-исследовательской-части--examples-from-the-research-section)
     - [Извлечение частотных свойств значений категориальных признаков / Extraction of Frequency Based Features](#извлечение-частотных-свойств-значений-категориальных-признаков--extraction-of-frequency-based-features)
@@ -38,13 +40,20 @@
     - [Мониторинг оперативной  памяти / RAM Monitoring](#мониторинг-оперативной--памяти--ram-monitoring)
     - [Управление оперативной памятью / Active RAM Management](#управление-оперативной-памятью--active-ram-management)
     - [Логирование / Logging](#логирование--logging)
+  - [Использование API / API Using](#использование-api--api-using)
+   -[Предикт для одного клиента с одним кредитом / Predict for a Single Client with a single credit](#предикт-для-одного-клиента-с-одним-кредитом--predict-for-a-single-client-with-a-single-credit)
+   -[Обработка нескольких клиентов / Batch Scoring (multiple clients)](#обработка-нескольких-клиентов--batch-scoring-multiple-clients)
+   -[Проверка готовности / Health Check](#проверка-готовности--health-check)
 
 - [Автор / Author](#автор--author)
 
 ---
 
 ## English Summary
-This project implements a fully automated pipeline for solving the credit scoring task based on an ensemble of six CatBoost models, optimized for hyperparameters with Optuna.
+This project implements a fully automated pipeline for solving the credit scoring task based on an ensemble of six CatBoost models, optimized for hyperparameters with Optuna.  
+For practical application and automated batch scoring, an API service based on FastAPI is provided.
+
+The project provides Docker Compose configurations for three main use cases: API service deployment, manual command-line script execution, and running a Jupyter Notebook server.
 
 All stages of data preprocessing, training, inference, and model evaluation are encapsulated in a single modular pipeline, which is launched via an CLI interface with a flexible flag system and detailed documentation on usage scenarios.
 
@@ -54,7 +63,7 @@ The code is organized according to the principles of modularity and separation o
 
 The ensemble architecture follows classic Data Science competition practices: five models are trained on separate folds with individual parameter tuning, while the sixth is trained on the full training dataset using the best fold’s optimal parameters. Final probabilities are averaged using weights proportional to each model’s validation AUC, and for binary classification, an optimal threshold is chosen to maximize the difference between TPR and FPR or to meet a required TPR as dictated by business logic.
 
-Although the project is educational and concludes the Junior ML Engineer course, it is developed with a focus on approximating a real production-grade, end-to-end ML pipeline—from data loading and preparation, through complex multi-level feature generation and advanced model optimization, to engineering infrastructure setup: CLI interface with adjustable logging levels, Docker environment, memory management, and automated resource monitoring.
+Although the project is educational and concludes the Junior ML Engineer course, it is developed with a focus on approximating a real production-grade, end-to-end ML pipeline—from data loading and preparation, through complex multi-level feature generation and advanced model optimization, to engineering infrastructure setup: REST API service, CLI interface with adjustable logging levels, Docker environment, memory management, and automated resource monitoring.
 An automated testing system is also implemented, featuring pytest-based unit tests that cover the main stages of data processing, feature engineering, model training, and key utility functions.
 
 ---
@@ -62,7 +71,10 @@ An automated testing system is also implemented, featuring pytest-based unit tes
 ## Краткое описание проекта
 
 Данный проект реализует полностью автоматизированный end‑to‑end цикл для решения задачи кредитного скоринга на основе ансамбля из шести моделей CatBoost,  
-оптимизированных по гиперпараметрам с помощью Optuna.
+оптимизированных по гиперпараметрам с помощью Optuna.  
+Для практического применения и автоматизации batch‑скоринга реализован API‑сервис на базе FastAPI.
+
+В проекте реализован запуск через Docker Compose с тремя конфигурациями: для сервиса API, ручного CLI-запуска скриптов и запуска Jupyter Notebook сервера.
 
 Все этапы обработки данных, обучения, инференса и оценки модели инкапсулированы в единый модульный пайплайн, который запускается через CLI-интерфейс с гибкой системой флагов и подробной документацией по сценариям работы.
 
@@ -72,7 +84,7 @@ An automated testing system is also implemented, featuring pytest-based unit tes
 
 Архитектура ансамбля моделей воспроизводит классические практики соревнований по Data Science: пять моделей тренируются на отдельных фолдах с индивидуальным подбором параметров, шестая — на всём тренировочном датасете с оптимальными параметрами лучшего фолда. Итоговые вероятности усредняются с использованием весов, пропорциональных AUC моделей на валидации, а для бинарной классификации используется оптимальный порог, рассчитанный по максимальной разнице TPR и FPR либо под требуемую полноту TPR по бизнес-логике.
 
-Несмотря на то что проект является учебным и завершает курс Junior ML Engineer, он разработан с ориентацией на приблежение к реальному промышленному пайплайну полного цикла - от загрузки и подготовки данных, сложной и многоуровневой генерации признаков, продвинутой оптимизации моделей до настройки инженерной инфроструктуры: CLI-интерфейс с  настройкой уровней логирования, Docker-окружение, управление памятью, автоматизированный мониторинг ресурсов.
+Несмотря на то что проект является учебным и завершает курс Junior ML Engineer, он разработан с ориентацией на приблежение к реальному промышленному пайплайну полного цикла - от загрузки и подготовки данных, сложной и многоуровневой генерации признаков, продвинутой оптимизации моделей до настройки инженерной инфроструктуры: REST API сервис, CLI-интерфейс с  настройкой уровней логирования, Docker-окружение, управление памятью, автоматизированный мониторинг ресурсов.
 Также реализована система автоматического тестирования, включающая юнит-тесты на базе pytest, которые покрывают главные этапы обработки данных, feature engineering, обучения моделей и ключевые служебные функции.
 
 ---
@@ -95,7 +107,11 @@ An automated testing system is also implemented, featuring pytest-based unit tes
 
 Обратите внимание: ограничения по стабильности работы Jupyter notebooks при объёме оперативной  
 памяти ниже 24 ГБ относятся только к запуску в контейнере.   
-В Conda-окружении все Jupyter notebooks выполняются при ограничении оперативной памяти в 16 Гб.   
+В Conda-окружении все Jupyter notebooks выполняются при ограничении оперативной памяти в 16 Гб.  
+
+API сервис запускается во всех режимах: в Conda-окружении и в трёх конфигурациях Docker Compose.  
+Проверка работоспособности сервиса через endpoint /health доступна во всех режимах, однако автоматический перезапуск сервиса осуществляется только в Docker-конфигурации api.
+
 
 ### Запуск в Conda окружении / Running in a Conda environment
 
@@ -104,11 +120,11 @@ An automated testing system is also implemented, featuring pytest-based unit tes
 Вы можете клонировать репозиторий с помощью SSH:
 
 ```shell
-git clone git@github.com:Sergey-Chursin/catboost-credit-scoring-pipeline.git. 
+git clone git@github.com:Sergey-Chursin/catboost-credit-scoring-pipeline.git  
 ```
 Или с помощью HTTPS:  
 ```shell
-git clone https://github.com/Sergey-Chursin/catboost-credit-scoring-pipeline.git. 
+git clone https://github.com/Sergey-Chursin/catboost-credit-scoring-pipeline.git  
 ```
 Однако, для полноценной работы с проектом, включая загрузку больших файлов данных из папки `train_data`,    
 необходимо установить и инициализировать [Git Large File Storage (Git LFS)](https://git-lfs.github.com/):  
@@ -139,37 +155,38 @@ conda activate project_ml_env
 
 Запустите тесты  
 ```shell
-pytest
+python -m pytest
 ``` 
 или с более подробным выводом  
 ```shell
-pytest -s -v 
+python -m pytest -s -v 
 ``` 
 Либо запустите один из основных скриптов:  
 Тестовый режим с получением предикта на тестовой выборке с выводом метрики ROC AUC.  
 Репозиторий уже содержит обученный pipeline поэтому можно сразу запустить любой режим.  
 ```shell
-python src/pipeline.py --log-level info --mode test --eval-metrics auc
+python -m src.pipeline --log-level info --mode test --eval-metrics auc
 ``` 
 
 Тренировочный режим
 ```shell
-python src/pipeline.py --log-level info --mode train 
+python -m src.pipeline --log-level info --mode train 
 ``` 
 
 Инференс на новых данных (используются все обучающие данные)
 ```shell
-python src/pipeline.py --log-level info --mode inference 
+python -m src.pipeline --log-level info --mode inference 
 ``` 
 
 Инференс на новых данных (с выбором количества обрабатываемых партиций )
 ```shell
-python src/pipeline.py --log-level info --mode inference --max-files 3
+python -m src.pipeline --log-level info --mode inference --max-files 3
 ``` 
 
 Подробное описание работы в различных режимах смотрите в комментариях в начале файла pipeline.py.  
 
 6. Работа в Jupyter (опционально)  
+
 Если установили Conda, то следующая команда запустит сервер jupyter в браузере по умолчанию:  
 ```shell
 jupyter notebook
@@ -184,6 +201,7 @@ conda install jupyter
 Вы можете запускать ячейки ноутбука или просто просматривать содержимое.  
 
 7. Отключение или удаление окружения
+
 Выйти из окружения:
 ```shell
 conda deactivate
@@ -208,11 +226,11 @@ jupyter - тяжёлая конфигурация, для ручной рабо�
 Вы можете клонировать репозиторий с помощью SSH:
 
 ```shell
-git clone git@github.com:Sergey-Chursin/catboost-credit-scoring-pipeline.git. 
+git clone git@github.com:Sergey-Chursin/catboost-credit-scoring-pipeline.git 
 ```
 Или с помощью HTTPS:  
 ```shell
-git clone https://github.com/Sergey-Chursin/catboost-credit-scoring-pipeline.git. 
+git clone https://github.com/Sergey-Chursin/catboost-credit-scoring-pipeline.git 
 ```
 Однако, для полноценной работы с проектом, включая загрузку больших файлов данных из папки `train_data`,    
 необходимо установить и инициализировать [Git Large File Storage (Git LFS)](https://git-lfs.github.com/):  
@@ -232,7 +250,7 @@ cd catboost-credit-scoring-pipeline
 Перед запуском убедитесь, что Docker Desktop включён и работает.
 Для запуска light версии:  
 ```shell
-docker-compose run -it --rm light bash
+docker-compose run --service-ports -it --rm light bash
 ```
 
 Для запуска jupyter версии:
@@ -240,35 +258,36 @@ docker-compose run -it --rm light bash
 docker-compose run --service-ports -it --rm jupyter bash
 ```
 
-4. Проверьте работу. 
+4. Проверьте работу
+
 Запустите тесты  
 ```shell
-pytest
+python -m pytest
 ``` 
 или с более подробным выводом  
 ```shell
-pytest -s -v 
+python -m pytest -s -v 
 ``` 
 Либо запустите один из основных скриптов:  
 Тестовый режим с получением предикта на тестовой выборке с выводом метрики ROC AUC.  
 Репозиторий уже содержит обученный pipeline поэтому можно сразу запустить любой режим.  
 ```shell
-python src/pipeline.py --log-level info --mode test --eval-metrics auc
+python -m src.pipeline --log-level info --mode test --eval-metrics auc
 ``` 
 
 Тренировочный режим
 ```shell
-python src/pipeline.py --log-level info --mode train 
+python -m src.pipeline --log-level info --mode train 
 ``` 
 
 Инференс на новых данных (используются все обучающие данные)
 ```shell
-python src/pipeline.py --log-level info --mode inference 
+python -m src.pipeline --log-level info --mode inference 
 ``` 
 
 Инференс на новых данных (с выбором количества обрабатываемых партиций )
 ```shell
-python src/pipeline.py --log-level info --mode inference --max-files 3
+python -m src.pipeline --log-level info --mode inference --max-files 3
 ``` 
 
 Подробное описание работы в различных режимах смотрите в комментариях в начале файла pipeline.py.
@@ -283,7 +302,8 @@ jupyter notebook --ip=0.0.0.0 --no-browser --allow-root
 В форме “Password or token” вставьте скопированный токен и нажмите "Log in".  
 В открывшемся интерфейсе найдите папку notebooks и запускайте нужный ноутбук.  
 
-6. Закрытие контейнера с Jupyter notebook.  
+6. Закрытие контейнера с Jupyter notebook
+
 После завершения работы в терминале нажмите "ctrl+c" и в течении 5 сек нажмите "y",  
 если не успеете, то выключайте контейнер через Docker Desktop.  
 Если успели то можно продожить работу в CLI-режиме.
@@ -294,6 +314,36 @@ jupyter notebook --ip=0.0.0.0 --no-browser --allow-root
 ```shell
 exit
 ``` 
+8. Удалите образ в Docker Desktop
+
+### Запуск API сервиса / Running the API service
+
+Как указано выше, сервис API может быть запущен как в conda-окружении, так и во всех трех конфигурациях Docker Compose.  
+Однако автоматическая проверка готовности сервера через эндпоинт /health с последующим перезапуском сервиса при необходимости реализована только в Docker Compose-конфигурации api.
+
+1. В конфигурации api cборка образа, запуск контейнера и старт приложения производится одной командой
+
+```shell
+docker-compose up api
+```
+
+2. Для запуска API сервиса в других режимах выполните
+
+```shell
+python -m src.app
+``` 
+
+3. Проверить работу сервиса можно отправив несколько запросов на предикты через скрипт query.py(из отдельной вкладки терминала)
+
+```shell
+python -m src.query
+``` 
+Либо через через OpenAPI в браузере по относительным адресам:  
+/docs (Swagger UI)  
+/redoc (Redoc)  
+Пример: http://localhost:8000/docs
+В Swagger UI можно не только ознакомиться с описанием сервиса, но и отправлять тестовые
+запросы к любому endpoint. 
 
 ---
 
@@ -303,7 +353,10 @@ exit
   - `raw/` — исходные данные в формате Parquet
   - `target/` — целевая переменная
   - `temp/` — временные файлы обработки
-- `Dockerfile` — спецификация сборки Docker-образа
+- `docker-compose.yml` - файл оркестрации и конфигурации запуска Docker-контейнеров
+- `Dockerfile.jupyter` - спецификация сборки Docker-образа jupyter
+- `Dockerfile.light` — спецификация сборки Docker-образа light
+- `Dockerfile.prod` — спецификация сборки Docker-образа api
 - `environment.yml` — описание conda-окружения и зависимостей
 - `images/` — изображения для README и отчетов
 - `models/` — обученные модели и пайплайны
@@ -533,6 +586,18 @@ debug - Режим отладки - вывод статистик по испо�
 - замена ресурсоёмкого drop_duplicates(subset=['id']) на groupby('id').first() для удаления дубликатов по id без перегрузки памяти.  
 После этих мероприятий качество модели снизилось с 0.7572 до 0.7556, однако эту разницу можно считать незначительной платой за повышение стабильности работы пайплайна.
 
+### Особенности реализации API / API Implementation Details
+FastAPI-сервис предназначен для получения предиктов кредитного скоринга в реальном времени.  
+Сервис поддерживает как индивидуальную обработку данных одного клиента так и batch‑инференс — можно отправить список клиентов с их признаками.  
+Для одного клиента допускается несколько кредитных записей, объединяемых по уникальному id.  
+
+Входные данные каждого клиента автоматически валидируются по схеме FeatureVector (pydantic). Это обеспечивает строгую структуру, безопасность и воспроизводимость обработки. Все некорректные записи сразу отклоняются с подробным описанием ошибки.
+
+Результат работы — агрегированный предикт по каждому id: вероятность дефолта и бинарная метка (0 — default не ожидается, 1 — default ожидается).  
+
+В сервисе реализован отдельный health check endpoint для проверки работоспособности пайплайна.  
+В Docker Compose на этот endpoint завязан механизм автоматического перезапуска сервиса при сбоях.
+
 ---
 
 ## Примеры использования / Usage Examples
@@ -721,9 +786,7 @@ fit, fit_transform, transform, predict_proba и predict.
 Список поддерживаемых метрик легко расширяется, без модификации основной логики, за счёт применения mapping диспетчеризации.
 
 #### Мониторинг оперативной  памяти / RAM Monitoring
-Декоратор memory_monitor объединяет под собой функции rss_process_statistic и cgroup_memory_statistic модуля memory_utils.py,  
-активируется в режиме  логирования Debug и выводит статистки оперативной памяти на входе декарируемой функции,  
-перед выполнением её логики и на выходе функции для сравнения нугрузки на RAM.  
+Декораторы memory_monitor_function(для функций) и memory_monitor_transformer(для трансформеров) объединяют под собой функции rss_process_statistic и cgroup_memory_statistic модуля memory_utils.py, активируются в режиме  логирования Debug и выводят статистки оперативной памяти на входе декарируемых функций/методов, перед выполнением их логики и на выходе для сравнения нугрузки на RAM.  
 Функция rss_process_statistic мультиплатформенна и выводит:  
 - текущий объём оперативной памяти, занимаемый процессом(RSS в формате MiB(мебибайты));  
 - степень фрагментации DataFrame обрабатываемого пайплайном (количество блоков памяти);  
@@ -757,6 +820,120 @@ heap_trim - также выполняет подобный heap trimming и ло
 Во всех модулях проекта заданы локальные логгеры, которые наследуют эти настройки при импорте функций модулей.  
 При самостоятельном импорте функций эти логгеры работают безопасно: если глобальный логгер не настроен, логи не выводятся,
 но остальная логика функций работает.
+
+### Использование API / API Using
+Все запросы к API для получения предикта отправляются методом POST на конечную точку /predict.  
+В теле запроса необходимо передавать список словарей (JSON array), каждый из которых соответствует кредитной записи клиента.  
+Для одного клиента допускается несколько кредитных записей, объединяемых по уникальному id.  
+В одном запросе можно отправить данные по нескольким клиентам.  
+
+В ответ получаем агрегированный предикт по каждому id: вероятность дефолта и бинарная метка (0 — default не ожидается, 1 — default ожидается). 
+
+Примеры файлов для запросов в формате json формируются в скрипте query.py и после доступны по адресу ../data/processed/  
+Эти примеры покравают все возможные сценарии: 
+- один клиент с одним кредитом
+- один клиент с несколькими кредитами
+- несколько клиентов, у каждого по одному кредиту
+- несколько клиентов, у каждого по несколько кредитов
+Скрипт query.py также делает запросы через библиотеку requests.
+
+В сервисе реализован отдельный health check endpoint для проверки работоспособности пайплайна.  
+В Docker Compose на этот endpoint завязан механизм автоматического перезапуска сервиса при сбоях.
+
+Запросы можно отправлять через curl, python requests или по адресу /docs (Swagger UI) и /redoc (Redoc), 
+пример - http://localhost:8000/docs
+
+#### Предикт для одного клиента с одним кредитом / Predict for a Single Client with a single credit
+
+Request (using curl):
+curl -X POST "http://localhost:8000/predict" \
+  -H "Content-Type: application/json" \
+  -d '[
+    {
+      "id": 125000,
+      "rn": 48,
+      "pre_since_opened": 12,
+      "pre_since_confirmed": 12,
+      "pre_pterm": 12,
+      "pre_fterm": 12,
+      "pre_till_pclose": 0,
+      "pre_till_fclose": 0,
+      "pre_loans_credit_limit": 150000,
+      "pre_loans_next_pay_summ": 10000,
+      "pre_loans_outstanding": 30000,
+      "pre_loans_max_overdue_sum": 0,
+      "pre_overdue_summ": 0,
+      "pre_loans_account_active_flag": 1
+      // ... add all required fields
+    }
+  ]'
+Полный список полей, их типов и допустимых значений смотри в app.py(FeatureVector/Pydantic-схема), либо по адресу /docs (Swagger UI),  
+пример  http://localhost:8000/docs  
+
+Response:
+{
+  "predictions": [
+    {
+      "client_id": 125000,
+      "probability": 0.6026805705316947,
+      "class": 1
+    }
+  ],
+  "model_info": "CatBoost ensemble, 6 models, binary classification"
+}
+
+#### Обработка нескольких клиентов / Batch Scoring (multiple clients)
+
+Request  (Python requests example):
+
+import requests
+
+payload = [
+    {
+        "id": 10001,
+        "rn": 36,
+        "pre_since_opened": 13,
+        // ... all features
+    },
+    {
+        "id": 10002,
+        "rn": 24,
+        "pre_since_opened": 10,
+        // ... all features
+    }
+    # add more clients
+]
+response = requests.post("http://localhost:8000/predict", json=payload)
+print(response.json())
+
+Response:
+{
+  "predictions": [
+    {
+      "client_id": 10001,
+      "probability": 0.165,
+      "class": 0
+    },
+    {
+      "client_id": 10002,
+      "probability": 0.410,
+      "class": 1
+    }
+  ],
+  'model_info': 'CatBoost ensemble, 6 models, binary classification'
+}
+
+#### Проверка готовности / Health Check
+
+curl http://localhost:8000/health
+
+Response (on success):
+{
+  "status": "ok",
+  "pipeline_loaded": true
+}
+
+
 
 
 ## Автор / Author
