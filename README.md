@@ -116,7 +116,7 @@ API сервис запускается во всех режимах: в Conda-�
 
 ### Запуск в Conda окружении / Running in a Conda environment
 
-1. Для простого ознакомления с проектом достаточно выполнить обычный клон репозитория:    
+1.  Выполните клонирование репозитория:    
 
 Вы можете клонировать репозиторий с помощью SSH:
 
@@ -127,12 +127,6 @@ git clone git@github.com:Sergey-Chursin/catboost-credit-scoring-pipeline.git
 ```shell
 git clone https://github.com/Sergey-Chursin/catboost-credit-scoring-pipeline.git  
 ```
-Однако, для полноценной работы с проектом, включая загрузку больших файлов данных из папки `train_data`,
-необходимо установить и инициализировать [Git Large File Storage (Git LFS)](https://git-lfs.github.com/):  
-```shell
-git lfs install
-```
-Если Git LFS не установлен, файлы из `train_data` будут загружены как указатели и не будут доступны для работы.  
 
 2. Перейдите в корневую директорию проекта. 
 
@@ -222,7 +216,7 @@ jupyter - тяжёлая конфигурация, для ручной рабо�
 
 Дальнейшие шаги запуска, общие для light и jupyter режимов (различия только в командах запуска контейнера).
 
-1. Для простого ознакомления с проектом достаточно выполнить обычный клон репозитория:    
+1. Выполните клонирование репозитория:    
 
 Вы можете клонировать репозиторий с помощью SSH:
 
@@ -232,13 +226,7 @@ git clone git@github.com:Sergey-Chursin/catboost-credit-scoring-pipeline.git
 Или с помощью HTTPS:  
 ```shell
 git clone https://github.com/Sergey-Chursin/catboost-credit-scoring-pipeline.git 
-```
-Однако, для полноценной работы с проектом, включая загрузку больших файлов данных из папки `train_data`,
-необходимо установить и инициализировать [Git Large File Storage (Git LFS)](https://git-lfs.github.com/):  
-```shell
-git lfs install
-```
-Если Git LFS не установлен, файлы из `train_data` будут загружены как указатели и не будут доступны для работы.  
+``` 
 
 2. Перейдите в корневую директорию проекта. 
 
