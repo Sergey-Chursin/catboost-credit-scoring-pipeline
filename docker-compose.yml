@@ -28,6 +28,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.jupyter
+    profiles:
+      - dev # Зададим профиль чтобы серввис не запускался по команде docker compose up
     container_name: jupyter_full
     ports:
       - "8888:8888" # Порт для jupyter
@@ -38,6 +40,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.light
+    profiles:
+      - dev # Зададим профиль чтобы серввис не запускался по команде docker compose up
     container_name: cli_light
     ports:
       - "8000:8000" # Порт для API
