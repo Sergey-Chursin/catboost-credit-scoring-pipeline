@@ -172,7 +172,7 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
             self.logger.info("CLASSIFIER predict_proba")
 
         preds = []
-        for model, weight in zip(self.models_, self.weights_list):
+        for model, weight in zip(self.models_, self.weights_list, strict=True):
             pred = model.predict_proba(X)[:, 1]
             preds.append(pred * weight)
         mean_pred = np.sum(preds, axis=0) / np.sum(self.weights_list)

@@ -1,14 +1,13 @@
+import json
 import os
 
 import pandas as pd
-
-pd.set_option("display.max_columns", None)
-import json
-
 import requests
 
 from src.config import PRE_FEATURES, RAW_DATA_PATH, TRANSFORM_DATA_PATH
 from src.data_utils import load_dataset
+
+pd.set_option("display.max_columns", None)
 
 if __name__ == "__main__":
     data = load_dataset(RAW_DATA_PATH, num_parts_total=1, columns=PRE_FEATURES)

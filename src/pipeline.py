@@ -446,14 +446,14 @@ def load_pipeline(path: str, logger: Optional[logging.Logger] = None):
             logger.info(f"Pipeline loaded successfully from {path}")
         return pipe
 
-    except FileNotFoundError:
+    except FileNotFoundError as err:
         msg = (
             f"Pipeline file not found at {path}. "
             "Train the pipeline first (run with --mode train or without --mode flag)."
         )
         if logger is not None:
             logger.error(msg)
-        raise FileNotFoundError(msg)
+        raise FileNotFoundError(msg) from err
 
 
 def run_train_coordinator(
