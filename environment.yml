@@ -35,4 +35,7 @@ dependencies:
   - pip:
       - loguru==0.7.3
       - pipdeptree==2.26.0
+      # Инструменты разработки
+      - mypy==1.18.2
+      - ruff==0.14.2
 

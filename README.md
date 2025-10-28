@@ -1,3 +1,5 @@
+добавить pyproject.toml в структуру
+
 # Credit Scoring with CatBoost Ensemble
 *Кредитный скоринг с ансамблем CatBoost*
 
