@@ -1,18 +1,18 @@
-import pytest
-
-from unittest.mock import patch, MagicMock
 import pickle
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pandas as pd
+import pytest
 from sklearn.pipeline import Pipeline
-
 from src.pipeline import (
-    main_pipeline,
     load_pipeline,
-    run_train_coordinator,
+    main_pipeline,
+    run_inference_coordinator,
     run_test_coordinator,
-    run_inference_coordinator
+    run_train_coordinator,
 )
+
 
 # ------- Тест для main_pipeline -------------
 def test_main_pipeline_returns_pipeline():
@@ -25,19 +25,19 @@ def test_main_pipeline_returns_pipeline():
         params_list=[{"param": 1}],
         weights_list=[1.0],
         threshold=0.5,
-        cat_features=['cat1'],
+        cat_features=["cat1"],
         n_splits=2,
         seed=42,
         shuffle=True,
         prop_features_dict={"f": 1},
         float_downcast_columns_list=[],
-        norma='rn_max',
+        norma="rn_max",
         mean_freq_source_list=["mean_f"],
         drop_list_mean_value_frequency=[],
         drop_list=["to_drop"],
         drop_list_enc_paym_norm_summ_diff=[],
         cast_type_map={},
-        logger=None
+        logger=None,
     )
 
     # Проверяем, что pipeline - объект класса Pipeline (sklearn)
@@ -45,8 +45,8 @@ def test_main_pipeline_returns_pipeline():
 
     # Получаем имена шагов pipeline и убеждаемся, что нужные шаги присутствуют
     step_names = dict(pipeline.steps).keys()
-    assert 'preprocessing' in step_names
-    assert 'classifier' in step_names
+    assert "preprocessing" in step_names
+    assert "classifier" in step_names
 
 
 # ------- Тест для load_pipeline -------------
@@ -54,7 +54,7 @@ def test_load_pipeline_success(tmp_path):
     """
     Проверяет успешную загрузку объекта пайплайна из файла.
     """
-    obj = {'some': 'pipeline'}
+    obj = {"some": "pipeline"}
     path = tmp_path / "pipeline.pkl"
     with open(path, "wb") as f:
         pickle.dump(obj, f)
@@ -75,6 +75,7 @@ def test_load_pipeline_not_found():
 
 # ------- Тест для run_train_coordinator -------------
 
+
 # @patch - при запуске теста все функции в pipeline
 # будут заменены на объекты MagicMock
 # Декораторы “оборачивают” функцию поочерёдно, начиная с самой глубокой (ближайшей к функции).
@@ -90,12 +91,12 @@ def test_load_pipeline_not_found():
 @patch("src.pipeline.check_data_folder_and_count_files")
 @patch("src.pipeline.pickle.dump")
 def test_run_train_coordinator_full_cycle(
-        mock_pickle_dump,
-        mock_check_count,
-        mock_load_dataset,
-        mock_split_dataset,
-        mock_main_pipeline,
-        tmp_path
+    mock_pickle_dump,
+    mock_check_count,
+    mock_load_dataset,
+    mock_split_dataset,
+    mock_main_pipeline,
+    tmp_path,
 ):
     """
     Проверяет, что run_train_coordinator корректно проходит все этапы
@@ -109,7 +110,7 @@ def test_run_train_coordinator_full_cycle(
         "X_train": np.zeros((2, 2)),
         "y_train": np.array([0, 1]),
         "X_test": np.zeros((1, 2)),
-        "y_test": np.array([1])
+        "y_test": np.array([1]),
     }
     # Мокаем pipeline и fit
     # Создаём заглушку
@@ -151,7 +152,7 @@ def test_run_train_coordinator_full_cycle(
         drop_list_mean_value_frequency=["b"],
         float_downcast_columns_list=[],
         cast_type_map={},
-        search_file_ext='.csv'
+        search_file_ext=".csv",
     )
     # Проверяем что вызывался main_pipeline
     # called - вернёт True если метод был вызван
@@ -171,13 +172,13 @@ def test_run_train_coordinator_full_cycle(
 @patch("src.pipeline.save_predictions_with_id")
 @patch("src.pipeline.compute_and_log_metrics")
 def test_run_test_coordinator_flow(
-        mock_compute_metrics,
-        mock_save,
-        mock_make_file_path,
-        mock_split,
-        mock_load,
-        mock_check,
-        mock_load_pipe
+    mock_compute_metrics,
+    mock_save,
+    mock_make_file_path,
+    mock_split,
+    mock_load,
+    mock_check,
+    mock_load_pipe,
 ):
     """
     Проверяет, что run_test_coordinator проходит все этапы с моками:
@@ -196,7 +197,7 @@ def test_run_test_coordinator_flow(
         "X_train": {"id": pd.Series([1, 2, 3])},
         "y_train": np.array([0, 1, 0]),
         "X_test": {"id": pd.Series([3, 4])},
-        "y_test": np.array([0, 1])
+        "y_test": np.array([0, 1]),
     }
     mock_make_file_path.return_value = "predictions.csv"
 
@@ -219,7 +220,7 @@ def test_run_test_coordinator_flow(
         verbose=False,
         logger=None,
         cast_type_map={},
-        search_file_ext='.csv'
+        search_file_ext=".csv",
     )
     # Проверяем что пайплайн загружается с правильным путём
     mock_load_pipe.assert_called_once_with("path.pkl")
@@ -238,11 +239,7 @@ def test_run_test_coordinator_flow(
 @patch("src.pipeline.make_file_path")
 @patch("src.pipeline.save_predictions_with_id")
 def test_run_inference_coordinator_flow(
-        mock_save,
-        mock_make_file_path,
-        mock_load_dataset,
-        mock_check,
-        mock_load_pipe
+    mock_save, mock_make_file_path, mock_load_dataset, mock_check, mock_load_pipe
 ):
     """
     Проверяет, что run_inference_coordinator проходит полный процесс получения
@@ -258,7 +255,10 @@ def test_run_inference_coordinator_flow(
     mock_load_pipe.return_value = mock_pipe
     mock_check.return_value = ("any_folder", 1)
     # Мокаем возвращаемые данные как словари из Series
-    mock_load_dataset.return_value = {"id": pd.Series([1, 2]), "f": pd.Series([100, 200])}
+    mock_load_dataset.return_value = {
+        "id": pd.Series([1, 2]),
+        "f": pd.Series([100, 200]),
+    }
     mock_make_file_path.return_value = "predictions.csv"
 
     run_inference_coordinator(
@@ -274,8 +274,8 @@ def test_run_inference_coordinator_flow(
         verbose=False,
         logger=None,
         cast_type_map={},
-        search_file_ext='.csv',
-        max_files=1
+        search_file_ext=".csv",
+        max_files=1,
     )
     # Проверяем, что пайплайн действительно загружался с нужным путём
     mock_load_pipe.assert_called_once_with("path.pkl")

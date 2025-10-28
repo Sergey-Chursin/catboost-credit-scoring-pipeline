@@ -1,18 +1,18 @@
 import os
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pytest
 
 # Импортируем тестируемые функции
 from src.data_utils import (
+    check_data_folder_and_count_files,
     load_data_chunks,
     load_dataset,
+    make_file_path,
+    save_predictions_with_id,
     split_dataset_by_target,
     split_target_only,
-    make_file_path,
-    check_data_folder_and_count_files,
-    save_predictions_with_id
 )
 
 """
@@ -22,6 +22,8 @@ from src.data_utils import (
 При каждом запуске теста, pytest отдаёт сюда новый, пустой, изолированный путь на диске (pathlib.Path объект).
 Всё, что мы туда запишем, будет удалено после тестов.
 """
+
+
 @pytest.fixture
 def parquet_test_dir(tmp_path):
     """
@@ -36,13 +38,15 @@ def parquet_test_dir(tmp_path):
     """
     # генерим три файла
     for i in range(3):
-        df = pd.DataFrame({
-        # Генерируем 5 последовательных id,
-        # которые не пересекаются между файлами.
-        # В feature создаём 5 случайных чисел из нормального распределения N(0,1)
-        "id": np.arange(i * 5, (i + 1) * 5),
-            "feature": np.random.randn(5)
-        })
+        df = pd.DataFrame(
+            {
+                # Генерируем 5 последовательных id,
+                # которые не пересекаются между файлами.
+                # В feature создаём 5 случайных чисел из нормального распределения N(0,1)
+                "id": np.arange(i * 5, (i + 1) * 5),
+                "feature": np.random.randn(5),
+            }
+        )
         # Сохраняем датафрейм в формат Parquet
         df.to_parquet(tmp_path / f"train_data_{i}.pq")
     return tmp_path
@@ -61,7 +65,7 @@ def test_load_parquet_chunks_reads_selected_parts(parquet_test_dir):
         start_from=1,
         num_parts_to_read=2,
         verbose=False,
-        columns=["id"]
+        columns=["id"],
     )
     # Всего 2 партиции по 5 строк = 10 строк
     assert df.shape[0] == 10
@@ -84,7 +88,7 @@ def test_load_dataset_batches_and_saves(parquet_test_dir, tmp_path):
         num_parts_total=3,
         save_to_path=save_dir,
         num_parts_to_preprocess_at_once=1,
-        verbose=False
+        verbose=False,
     )
     # В исходных данных 3 партиции * 5 строк
     assert df.shape[0] == 15
@@ -100,16 +104,10 @@ def test_split_dataset_by_target(tmp_path):
     - проверяем, что сплит с учётом стратификации возвращает непересекающиеся id
     """
     # X — набор фичей по id
-    df_features = pd.DataFrame({
-        "id": np.arange(10),
-        "f1": np.random.randn(10)
-    })
+    df_features = pd.DataFrame({"id": np.arange(10), "f1": np.random.randn(10)})
 
     # таргет с равным числом классов
-    target_df = pd.DataFrame({
-        "id": np.arange(10),
-        "target": [0, 1] * 5
-    })
+    target_df = pd.DataFrame({"id": np.arange(10), "target": [0, 1] * 5})
     target_csv = tmp_path / "target.csv"
     target_df.to_csv(target_csv, index=False)
 
@@ -118,7 +116,7 @@ def test_split_dataset_by_target(tmp_path):
         path_to_target=target_csv,
         train_size=0.8,
         random_state=42,
-        stratify_col="target"
+        stratify_col="target",
     )
 
     # Проверим, что в train и test нет пересечений по id
@@ -137,10 +135,7 @@ def test_split_target_only(tmp_path):
     - разделяет только Series с таргетом
     - размеры соответствуют train_size
     """
-    df_target = pd.DataFrame({
-        "id": np.arange(6),
-        "target": [0, 1] * 3
-    })
+    df_target = pd.DataFrame({"id": np.arange(6), "target": [0, 1] * 3})
     csv_path = tmp_path / "target.csv"
     df_target.to_csv(csv_path, index=False)
 
@@ -149,7 +144,7 @@ def test_split_target_only(tmp_path):
         train_size=0.5,
         random_state=42,
         stratify_col="target",
-        verbose=False
+        verbose=False,
     )
 
     assert len(split_res["y_train"]) == 3
@@ -166,7 +161,7 @@ def test_make_file_path_creates_expected_name():
         output_type="predict",
         data_path="data/raw",
         output_dir="predictions/inference",
-        ext="csv"
+        ext="csv",
     )
     # Имя файла должно содержать predict__raw__ и .csv
     assert "predict_raw_" in os.path.basename(output_path)
@@ -183,11 +178,11 @@ def test_check_data_folder_and_count_files(tmp_path):
         (tmp_path / f"file_{i}.txt").write_text("test")
 
     files, count = check_data_folder_and_count_files(
-        data_path=tmp_path,
-        pattern="*.txt"
+        data_path=tmp_path, pattern="*.txt"
     )
     assert count == 3
     assert all(os.path.splitext(f)[1] == ".txt" for f in files)
+
 
 def test_check_data_folder_and_count_files_raises(tmp_path):
     """
@@ -197,10 +192,7 @@ def test_check_data_folder_and_count_files_raises(tmp_path):
     # Если вызовет другой тип исключения, то тест тоже упадёт
     # Только если действительно будет выброшен ValueError, тест пройдёт
     with pytest.raises(ValueError):
-        check_data_folder_and_count_files(
-            data_path=tmp_path,
-            pattern="*.csv"
-        )
+        check_data_folder_and_count_files(data_path=tmp_path, pattern="*.csv")
 
 
 def test_save_predictions_with_id_proba_and_predict(tmp_path):
@@ -210,9 +202,7 @@ def test_save_predictions_with_id_proba_and_predict(tmp_path):
     - проверяем структуру сохранённого csv
     """
     ids = [1, 2, 3]
-    proba = np.array([[0.2, 0.8],
-                      [0.6, 0.4],
-                      [0.1, 0.9]])
+    proba = np.array([[0.2, 0.8], [0.6, 0.4], [0.1, 0.9]])
 
     # Сохраняем вероятности
     proba_path = tmp_path / "proba.csv"

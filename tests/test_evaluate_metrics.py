@@ -4,13 +4,14 @@ import pytest
 
 # Импортируем тестируемые функции
 from src.evaluate_metrics import (
-    evaluate_auc_score,
+    compute_and_log_metrics,
     evaluate_accuracy_score,
+    evaluate_auc_score,
     pred_and_metrics_compatible,
-    compute_and_log_metrics
 )
 
 # ---------------------- ТЕСТЫ ДЛЯ evaluate_auc_score ----------------------
+
 
 def test_evaluate_auc_score_binary_labels_and_probs(capsys):
     """
@@ -24,11 +25,7 @@ def test_evaluate_auc_score_binary_labels_and_probs(capsys):
     # Предсказанные вероятности для класса 1
     y_score = np.array([0.1, 0.4, 0.6, 0.9])
 
-    auc = evaluate_auc_score(
-        y_true,
-        y_score,
-        verbose=True
-    )
+    auc = evaluate_auc_score(y_true, y_score, verbose=True)
 
     # np.isclose(a, b) возвращает True, если a и b равны с учётом небольшой погрешности
     # Проверяем, что вычисленный AUC очень близок к 1.0 (идеальный прогноз)
@@ -58,6 +55,7 @@ def test_evaluate_auc_score_with_2d_array():
 
 # ---------------------- ТЕСТЫ ДЛЯ evaluate_accuracy_score ----------------------
 
+
 def test_evaluate_accuracy_score_perfect(capsys):
     """
     Проверяем, что evaluate_accuracy_score:
@@ -71,7 +69,6 @@ def test_evaluate_accuracy_score_perfect(capsys):
 
     # Здесь проверяем, что accuracy == 1.0 (все ответы совпали)
     assert acc == 1.0
-
 
     # capsys.readouterr() перехватывает print() в standard output
     out, _ = capsys.readouterr()
@@ -97,26 +94,27 @@ def test_evaluate_accuracy_score_partial():
 # запустить один и тот же тест с разными входными данными.
 # "array,dtype,ndim,expected" — это список имён параметров тестовой функции.
 # под этим декоратором тестовая функция один раз будет запущена для каждой строки списка.
-@pytest.mark.parametrize("array,dtype,ndim,expected", [
-    (np.array([0, 1, 0], dtype=int), int, 1, True),
-    (np.array([[0, 1],[1, 0]]), int, 2, False),
-    (np.array([[0.1, 0.9], [0.8, 0.2]], dtype=float), float, 2, True),
-    (np.array([0.1, 0.9], dtype=float), float, 1, True),
-    (np.array([0, 1], dtype=int), int, 1, True),
-])
+@pytest.mark.parametrize(
+    "array,dtype,ndim,expected",
+    [
+        (np.array([0, 1, 0], dtype=int), int, 1, True),
+        (np.array([[0, 1], [1, 0]]), int, 2, False),
+        (np.array([[0.1, 0.9], [0.8, 0.2]], dtype=float), float, 2, True),
+        (np.array([0.1, 0.9], dtype=float), float, 1, True),
+        (np.array([0, 1], dtype=int), int, 1, True),
+    ],
+)
 def test_pred_and_metrics_compatible(array, dtype, ndim, expected):
     """
     Проверка, что функция pred_and_metrics_compatible корректно валидирует
     формат предсказаний для классовых и вероятностных метрик.
     """
-    classes_metrics = ['acc']
-    eval_metric = 'acc' if np.issubdtype(array.dtype, np.integer) and array.ndim == 1 else 'auc'
-
-    result = pred_and_metrics_compatible(
-        array,
-        eval_metric,
-        classes_metrics
+    classes_metrics = ["acc"]
+    eval_metric = (
+        "acc" if np.issubdtype(array.dtype, np.integer) and array.ndim == 1 else "auc"
     )
+
+    result = pred_and_metrics_compatible(array, eval_metric, classes_metrics)
 
     # Проверяем, что возвращаемое функцией булево совпадает с ожидаемым
     assert result == expected
@@ -124,23 +122,24 @@ def test_pred_and_metrics_compatible(array, dtype, ndim, expected):
 
 # ---------------------- ТЕСТЫ ДЛЯ compute_and_log_metrics ----------------------
 
+
 def test_compute_and_log_metrics_with_y_pred_class_metric():
     """
     Если передан y_pred для accuracy, pipe не вызывается.
     """
     train_test_dict = {
-        'X_test': pd.DataFrame({'x1': [1, 2, 3]}),
-        'y_test': np.array([0, 1, 0])
+        "X_test": pd.DataFrame({"x1": [1, 2, 3]}),
+        "y_test": np.array([0, 1, 0]),
     }
-    classes_metric_list = ['acc']
+    classes_metric_list = ["acc"]
     y_pred = np.array([0, 1, 0])
 
     result = compute_and_log_metrics(
-        eval_metric='acc',
+        eval_metric="acc",
         pipe=None,
         train_test_dict=train_test_dict,
         classes_metric_list=classes_metric_list,
-        y_pred=y_pred
+        y_pred=y_pred,
     )
 
     # np.isclose — проверяем, что возвращённая accuracy близка к 1.0
@@ -158,15 +157,15 @@ def test_compute_and_log_metrics_without_y_pred_class_metric():
             return np.array([0, 1, 0])
 
     train_test_dict = {
-        'X_test': pd.DataFrame({'x1': [1, 2, 3]}),
-        'y_test': np.array([0, 1, 0])
+        "X_test": pd.DataFrame({"x1": [1, 2, 3]}),
+        "y_test": np.array([0, 1, 0]),
     }
 
     result = compute_and_log_metrics(
-        eval_metric='acc',
+        eval_metric="acc",
         pipe=DummyPipe(),
         train_test_dict=train_test_dict,
-        classes_metric_list=['acc']
+        classes_metric_list=["acc"],
     )
     # проверяем, что точность близка к 1.0
     assert np.isclose(result, 1.0)
@@ -176,22 +175,21 @@ def test_compute_and_log_metrics_without_y_pred_prob_metric():
     """
     Если y_pred не передан, а метрика вероятностная — используется pipe.predict_proba.
     """
+
     class DummyPipe:
         def predict_proba(self, X):
-            return np.array([[0.8, 0.2],
-                             [0.1, 0.9],
-                             [0.6, 0.4]])
+            return np.array([[0.8, 0.2], [0.1, 0.9], [0.6, 0.4]])
 
     train_test_dict = {
-        'X_test': pd.DataFrame({'x1': [1, 2, 3]}),
-        'y_test': np.array([0, 1, 0])
+        "X_test": pd.DataFrame({"x1": [1, 2, 3]}),
+        "y_test": np.array([0, 1, 0]),
     }
 
     result = compute_and_log_metrics(
-        eval_metric='auc',
+        eval_metric="auc",
         pipe=DummyPipe(),
         train_test_dict=train_test_dict,
-        classes_metric_list=['acc']
+        classes_metric_list=["acc"],
     )
 
     # Проверяем, что result лежит в нормальном диапазоне для метрик (0..1)
@@ -205,10 +203,10 @@ def test_compute_and_log_metrics_off_mode():
     В режиме 'off' функция возвращает None.
     """
     res = compute_and_log_metrics(
-        eval_metric='off',
+        eval_metric="off",
         pipe=None,
-        train_test_dict={'X_test': None, 'y_test': None},
-        classes_metric_list=['acc']
+        train_test_dict={"X_test": None, "y_test": None},
+        classes_metric_list=["acc"],
     )
 
     # Проверяем, что функция вернула None (ничего не считает)

@@ -1,6 +1,7 @@
 import logging
 
-def setup_logging(level='OFF'):
+
+def setup_logging(level="OFF"):
     """
     Переключатель логирования функций пайплайна.
     При выборе опции 'info' будут выводиться названия функций,
@@ -35,18 +36,14 @@ def setup_logging(level='OFF'):
     level_upper = level.upper()
 
     # Настраиваем вывод логов
-    if level_upper == 'DEBUG':
+    if level_upper == "DEBUG":
         logging.basicConfig(
-            level=logging.DEBUG,
-            format='%(asctime)s - %(levelname)s - %(message)s'
+            level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
         )
         logging.getLogger().info("DEBUG logging mode enabled")
 
-    elif level_upper == 'INFO':
-        logging.basicConfig(
-            level=logging.INFO,
-            format='%(asctime)s - %(message)s'
-        )
+    elif level_upper == "INFO":
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
         logging.getLogger().info("INFO logging mode enabled")
 
     else:
@@ -56,8 +53,6 @@ def setup_logging(level='OFF'):
 
     return logger
 
+
 # Создаём глобальный logger
 logger = logging.getLogger(__name__)
-
-
-

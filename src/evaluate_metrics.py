@@ -1,22 +1,19 @@
-import logging
 import glob
-
+import logging
 from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
 import pandas as pd
-
 from sklearn.metrics import accuracy_score, roc_auc_score
 
 from src.config import (
-    TARGET_PATH,
-    TRAIN_SIZE,
+    CLASSES_TEST_PREDICT_PATTERN,
+    PROBA_TEST_PREDICT_PATTERN,
     SEED_SPLIT_DATASET,
     STRATIFY_COL,
-    PROBA_TEST_PREDICT_PATTERN,
-    CLASSES_TEST_PREDICT_PATTERN
+    TARGET_PATH,
+    TRAIN_SIZE,
 )
-
 from src.data_utils import split_target_only
 
 """
@@ -28,9 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def evaluate_auc_score(
-        y_true: Sequence,
-        y_score: Sequence,
-        verbose: bool = True
+    y_true: Sequence, y_score: Sequence, verbose: bool = True
 ) -> float:
     """
     Вычисляет и выводит/логирует значение ROC AUC для тестовой выборки.
@@ -58,10 +53,9 @@ def evaluate_auc_score(
         print(f"AUC on test set: {auc:.4f}")
     return auc
 
+
 def evaluate_accuracy_score(
-        y_true: Sequence,
-        y_pred: Sequence,
-        verbose: bool = True
+    y_true: Sequence, y_pred: Sequence, verbose: bool = True
 ) -> float:
     """
     Вычисляет и выводит/логирует значение Accuracy для тестовой выборки.
@@ -80,10 +74,9 @@ def evaluate_accuracy_score(
         print(f"Accuracy on test set: {acc:.4f}")
     return acc
 
+
 def pred_and_metrics_compatible(
-        y_pred: np.ndarray,
-        eval_metric: str,
-        classes_metric_list: List[str]
+    y_pred: np.ndarray, eval_metric: str, classes_metric_list: List[str]
 ) -> bool:
     """
     Вспомогательная функция для compute_and_log_metrics.
@@ -109,28 +102,30 @@ def pred_and_metrics_compatible(
         # y_pred.ndim - проверка на рвзмерность
         # np.issubdtype - проверка на тип
         return (
-                isinstance(y_pred, np.ndarray)
-                and y_pred.ndim == 1
-                and np.issubdtype(y_pred.dtype, np.integer)
+            isinstance(y_pred, np.ndarray)
+            and y_pred.ndim == 1
+            and np.issubdtype(y_pred.dtype, np.integer)
         )
     else:
         # Метрики по вероятностям (auc, logloss, ...) — (n,2) float или (n,) float
         # Добавлен вариант с predict_proba прошедшей слайсинг, то есть с одномерным
         # массивом float
-        return (
-                isinstance(y_pred, np.ndarray)
-                and (
-                        (y_pred.ndim == 2 and y_pred.shape[1] == 2 and np.issubdtype(y_pred.dtype, np.floating))
-                        or (y_pred.ndim == 1 and np.issubdtype(y_pred.dtype, np.floating))
-                )
+        return isinstance(y_pred, np.ndarray) and (
+            (
+                y_pred.ndim == 2
+                and y_pred.shape[1] == 2
+                and np.issubdtype(y_pred.dtype, np.floating)
+            )
+            or (y_pred.ndim == 1 and np.issubdtype(y_pred.dtype, np.floating))
         )
+
 
 def compute_and_log_metrics(
     eval_metric: str,
     pipe: Any,
     train_test_dict: Dict[str, pd.DataFrame],
     classes_metric_list: List[str],
-    y_pred: Optional[np.ndarray] = None
+    y_pred: Optional[np.ndarray] = None,
 ) -> Optional[float]:
     """
     Вычисляет и логирует выбранную метрику качества (AUC или Accuracy) на тестовой выборке.
@@ -150,10 +145,7 @@ def compute_and_log_metrics(
     """
     logger.info("FUNCTION compute_and_log_metrics")
     # Словарь для маппинг диспетчеризации
-    eval_metrics_map = {
-        'auc': evaluate_auc_score,
-        'acc': evaluate_accuracy_score
-    }
+    eval_metrics_map = {"auc": evaluate_auc_score, "acc": evaluate_accuracy_score}
     # Выбираем функцию из словаря по аргументу eval_metric
     func = eval_metrics_map.get(eval_metric)
 
@@ -162,16 +154,14 @@ def compute_and_log_metrics(
         logger.info("No evaluation metric selected (off mode).")
         return None
     # Получаем тестовые данные из словаря
-    X_test = train_test_dict['X_test']
-    y_test = train_test_dict['y_test']
+    X_test = train_test_dict["X_test"]
+    y_test = train_test_dict["y_test"]
 
     # Если подан y_pred нужного формата — используем его
     # Проверка размерности предикта есть в функциях модуля evaluate_metrics
     # verbose=False для отключения print() в функциях модуля evaluate_metrics
     if y_pred is not None and pred_and_metrics_compatible(
-            y_pred,
-            eval_metric,
-            classes_metric_list
+        y_pred, eval_metric, classes_metric_list
     ):
         logger.info(f"Using provided y_pred for metric '{eval_metric}'")
         result = func(y_test, y_pred, verbose=False)
@@ -208,34 +198,34 @@ if __name__ == "__main__":
 
     # Получаем словарь с разделенным на train/test таргетом
     y_dict = split_target_only(
-        path_to_target = TARGET_PATH,
-        train_size = TRAIN_SIZE,
-        random_state = SEED_SPLIT_DATASET,
-        stratify_col = STRATIFY_COL,
-        verbose = True
+        path_to_target=TARGET_PATH,
+        train_size=TRAIN_SIZE,
+        random_state=SEED_SPLIT_DATASET,
+        stratify_col=STRATIFY_COL,
+        verbose=True,
     )
 
     # Определяем истинные метки классов
-    y_true = y_dict['y_test']
+    y_true = y_dict["y_test"]
 
     # Находим по маске файл с предиктами вероятностей на тестовом наборе,
     # если файл еще не создан появится предупреждение
     proba_files = glob.glob(PROBA_TEST_PREDICT_PATTERN)
     if not proba_files:
         raise FileNotFoundError(
-            f'No proba prediction files found for mask: {PROBA_TEST_PREDICT_PATTERN}'
+            f"No proba prediction files found for mask: {PROBA_TEST_PREDICT_PATTERN}"
         )
     # Выбираем первый файл
     proba_test_predict = proba_files[0]
 
     # Загружаем предикты вероятностей классов
     proba_df = pd.read_csv(proba_test_predict)
-    probabilities = proba_df['proba_class_1'].values
+    probabilities = proba_df["proba_class_1"].values
 
     if verbose:
         print(
-            f'Loaded predicted probabilities from {proba_test_predict}\n'
-            f' shape: {probabilities.shape}'
+            f"Loaded predicted probabilities from {proba_test_predict}\n"
+            f" shape: {probabilities.shape}"
         )
 
     # Находим по маске файл с предиктами вероятностей на тестовом наборе,
@@ -243,19 +233,19 @@ if __name__ == "__main__":
     classes_files = glob.glob(CLASSES_TEST_PREDICT_PATTERN)
     if not classes_files:
         raise FileNotFoundError(
-            f'No proba prediction files found for mask: {CLASSES_TEST_PREDICT_PATTERN}'
+            f"No proba prediction files found for mask: {CLASSES_TEST_PREDICT_PATTERN}"
         )
     # Выбираем первый файл
     classes_test_predict = classes_files[0]
 
     # Загружаем предикты классов
     classes_df = pd.read_csv(classes_test_predict)
-    classes = classes_df['prediction'].values
+    classes = classes_df["prediction"].values
 
     if verbose:
         print(
-            f'Loaded predicted classes from {classes_test_predict}\n'
-            f' shape: {classes.shape}'
+            f"Loaded predicted classes from {classes_test_predict}\n"
+            f" shape: {classes.shape}"
         )
     # Проверяем совпадение длинн предикта и таргета -
     # выбрасываем предупреждение если нет.
@@ -267,8 +257,8 @@ if __name__ == "__main__":
 
     # Вызываем функцию оценки AUC
     evaluate_auc_score(
-            y_true,
-            probabilities,
+        y_true,
+        probabilities,
     )
 
     # Вызываем функцию оценки accuracy

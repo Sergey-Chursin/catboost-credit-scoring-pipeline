@@ -1,10 +1,9 @@
-import logging
-import gc
 import ctypes
-
-import psutil
+import gc
+import logging
 
 import pandas as pd
+import psutil
 
 """
 Модуль предоставляет инструменты мониторинга и оптимизации использования оперативной памяти 
@@ -23,9 +22,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def rss_process_statistic(
-        df: pd.DataFrame
-):
+def rss_process_statistic(df: pd.DataFrame):
     """
     Логирует подробную статистику по использованию памяти и фрагментации DataFrame,
     включая размеры всех DataFrame и Series, находящихся в памяти процесса.
@@ -55,9 +52,11 @@ def rss_process_statistic(
         return
 
     # Логируем общий RSS процесса
-    logger.debug(f"RSS: {psutil.Process().memory_info().rss / 1024 ** 2:.2f} MiB")
+    logger.debug(f"RSS: {psutil.Process().memory_info().rss / 1024**2:.2f} MiB")
     # Логируем степень фрагментации DataFrame: сколько физических блоков он занимает в памяти.
-    logger.debug(f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}")
+    logger.debug(
+        f"DataFrame fragmentation: number of memory blocks = {df._mgr.nblocks}"
+    )
 
     # Логируем все DataFrame в RAM: размер (shape), id.
     for obj in gc.get_objects():
@@ -115,7 +114,7 @@ def cgroup_memory_statistic():
                     # parts[2] = путь к cgroup относительно /sys/fs/cgroup
                     cgroup_path = parts[2]
                     break
-                    
+
     except (FileNotFoundError, PermissionError):
         logger.debug(
             "cgroup v2 not detected, memory metrics unavailable\n"
@@ -159,22 +158,19 @@ def cgroup_memory_statistic():
 
     # Конвертируем байты в MiB и выводим результат
     if current and current.isdigit():
-        current_mib = round(int(current) / (1024 ** 2), 2)
+        current_mib = round(int(current) / (1024**2), 2)
         logger.debug(f"cgroup memory.current: {current_mib} MiB")
     else:
         logger.debug("cgroup memory.current: unavailable")
 
     if swap and swap.isdigit():
-        swap_mib = round(int(swap) / (1024 ** 2), 2)
+        swap_mib = round(int(swap) / (1024**2), 2)
         logger.debug(f"cgroup memory.swap.current: {swap_mib} MiB")
     else:
         logger.debug("cgroup memory.swap.current: unavailable")
 
 
-
-def memory_checkpoint(
-        df: pd.DataFrame
-) -> pd.DataFrame:
+def memory_checkpoint(df: pd.DataFrame) -> pd.DataFrame:
     """
     Контрольная точка управления оперативной памятью:
     снимает фрагментацию DataFrame, высвобождает ресурсы процесса
@@ -198,7 +194,7 @@ def memory_checkpoint(
     """
 
     logger.info("FUNCTION memory_checkpoint")
-    logger.debug('Incoming statistics. Memory_checkpoint')
+    logger.debug("Incoming statistics. Memory_checkpoint")
     # Проверим RSS процесса и объекты в RAM
     rss_process_statistic(df)
     # Проверим потребление памяти по cgroup
@@ -222,7 +218,7 @@ def memory_checkpoint(
     else:
         logger.debug("malloc_trim(0) called successfully")
 
-    logger.debug('Output statistics. Memory_checkpoint')
+    logger.debug("Output statistics. Memory_checkpoint")
 
     # Проверим RSS процесса и объекты в RAM
     rss_process_statistic(df_new)
@@ -250,7 +246,7 @@ def heap_trim():
 
     logger.info("FUNCTION heap_trim")
     # Логируем общий RSS процесса
-    logger.debug(f"RSS: {psutil.Process().memory_info().rss / 1024 ** 2:.2f} MiB")
+    logger.debug(f"RSS: {psutil.Process().memory_info().rss / 1024**2:.2f} MiB")
 
     # Проверим потребление памяти по cgroup
     cgroup_memory_statistic()
@@ -265,19 +261,17 @@ def heap_trim():
         logger.debug("malloc_trim(0) called successfully")
 
     # Логируем общий RSS процесса
-    logger.debug(f"RSS: {psutil.Process().memory_info().rss / 1024 ** 2:.2f} MiB")
+    logger.debug(f"RSS: {psutil.Process().memory_info().rss / 1024**2:.2f} MiB")
 
     # Проверим потребление памяти по cgroup
     cgroup_memory_statistic()
-
 
 
 # Добавим защитный блок main для тестов
 if __name__ == "__main__":
     # Настройка логгера для standalone тестирования
     logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s - %(levelname)s - %(message)s'
+        level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
     )
 
     pass

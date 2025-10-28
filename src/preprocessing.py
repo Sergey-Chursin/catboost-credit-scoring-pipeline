@@ -2,7 +2,6 @@ import logging
 from typing import Dict
 
 import pandas as pd
-
 from sklearn.base import BaseEstimator, TransformerMixin
 
 from src.decorators import memory_monitor_function
@@ -46,10 +45,9 @@ from src.decorators import memory_monitor_function
 """
 logger = logging.getLogger(__name__)
 
+
 @memory_monitor_function
-def convert_all_to_numeric_preprocessing(
-        df: pd.DataFrame
-) -> pd.DataFrame:
+def convert_all_to_numeric_preprocessing(df: pd.DataFrame) -> pd.DataFrame:
     """
     Преобразует типы всех колоноки в числовые
     с заменой ошибок на NaN (errors='coerce').
@@ -63,14 +61,14 @@ def convert_all_to_numeric_preprocessing(
     """
 
     # errors='coerce' при невозможности преобразования заменит на NaN.
-    df = df.apply(lambda col: pd.to_numeric(col, errors='coerce'))
+    df = df.apply(lambda col: pd.to_numeric(col, errors="coerce"))
 
-    return  df
+    return df
+
 
 @memory_monitor_function
 def cast_columns_by_map_preprocessing(
-        df: pd.DataFrame,
-        cast_type_map: Dict[str, str]
+    df: pd.DataFrame, cast_type_map: Dict[str, str]
 ) -> pd.DataFrame:
     """
     Приводит типы указанных колонок DataFrame к типам, заданным в словаре cast_type_map.
@@ -94,10 +92,9 @@ def cast_columns_by_map_preprocessing(
 
     return df
 
+
 @memory_monitor_function
-def drop_duplicates_preprocessing(
-        df: pd.DataFrame
-) -> pd.DataFrame:
+def drop_duplicates_preprocessing(df: pd.DataFrame) -> pd.DataFrame:
     """
     Удаляет дубликаты строк из DataFrame.
 
@@ -118,7 +115,7 @@ def drop_duplicates_preprocessing(
 
         df = df.drop_duplicates(ignore_index=True)
 
-        return  df
+        return df
 
     else:
         # Если дубликатов нет — уведомляем и возвращаем исходный DataFrame
@@ -129,18 +126,19 @@ def drop_duplicates_preprocessing(
 
 class SampleMedianImputer(BaseEstimator, TransformerMixin):
     """
-        Класс для imputation пропусков медианами.
+    Класс для imputation пропусков медианами.
 
-        Этот трансформер наследует от BaseEstimator и TransformerMixin
-        для интеграции в sklearn pipelines.
-        Медианы вычисляются на подвыборке (sample_frac) для ускорения на больших датасетах.
+    Этот трансформер наследует от BaseEstimator и TransformerMixin
+    для интеграции в sklearn pipelines.
+    Медианы вычисляются на подвыборке (sample_frac) для ускорения на больших датасетах.
 
-        Args:
-            sample_frac (float): Доля выборки для вычисления медиан (default 0.1, т.е. 10%).
+    Args:
+        sample_frac (float): Доля выборки для вычисления медиан (default 0.1, т.е. 10%).
 
-        Attributes:
-            medians_ (pd.Series): Вычисленные медианы по колонкам (сохраняются после fit).
-        """
+    Attributes:
+        medians_ (pd.Series): Вычисленные медианы по колонкам (сохраняются после fit).
+    """
+
     def __init__(self, sample_frac=0.1, random_state=None):
         # Доля выборки для вычисления медиан
         self.sample_frac = sample_frac
@@ -160,12 +158,9 @@ class SampleMedianImputer(BaseEstimator, TransformerMixin):
         return X.fillna(self.medians_)
 
 
-
 # Добавим защитный блок main для тестов
 if __name__ == "__main__":
     # Настройка логгера только для standalone запуска
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(message)s')
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
     pass

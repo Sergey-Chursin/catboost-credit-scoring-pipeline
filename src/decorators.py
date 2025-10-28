@@ -1,12 +1,10 @@
 import functools
 import logging
 from typing import Callable
+
 import pandas as pd
 
-from src.memory_utils import (
-    rss_process_statistic,
-    cgroup_memory_statistic
-)
+from src.memory_utils import cgroup_memory_statistic, rss_process_statistic
 
 
 def memory_monitor_function(func: Callable) -> Callable:
@@ -25,7 +23,7 @@ def memory_monitor_function(func: Callable) -> Callable:
         logger = logging.getLogger(func.__module__)
 
         # Логируем название функции
-        logger.info(f'FUNCTION {func.__name__}')
+        logger.info(f"FUNCTION {func.__name__}")
 
         # Находим DataFrame среди аргументов
         df = None
@@ -34,7 +32,7 @@ def memory_monitor_function(func: Callable) -> Callable:
 
         # Выводим логи диагностики RAM ДО выполнения логики функции
         if logger.isEnabledFor(logging.DEBUG) and df is not None:
-            logger.debug('INCOMING statistics')
+            logger.debug("INCOMING statistics")
             # Логируем RSS процесса и объекты в RAM
             rss_process_statistic(df)
             # Логируем потребление памяти по cgroup
@@ -45,7 +43,7 @@ def memory_monitor_function(func: Callable) -> Callable:
 
         # Диагностика ПОСЛЕ выполнения логики функции
         if logger.isEnabledFor(logging.DEBUG) and isinstance(result, pd.DataFrame):
-            logger.debug('OUTPUT statistics')
+            logger.debug("OUTPUT statistics")
             rss_process_statistic(result)
             cgroup_memory_statistic()
 
@@ -70,13 +68,15 @@ def memory_monitor_transformer(cls):
         "transform",
         "fit_transform",
         "predict",
-        "predict_proba"
+        "predict_proba",
     ]
+
     def monitor(method_name, method):
         """
         Функция-обёртка (декоратор), которая добавляет мониторинг
         памяти вокруг исходного метода.
         """
+
         @functools.wraps(method)
         def wrapper(self, *args, **kwargs):
             # Получаем логгер из модуля,
@@ -92,7 +92,7 @@ def memory_monitor_transformer(cls):
 
             # Выводим логи диагностики RAM ДО выполнения логики метода
             if logger.isEnabledFor(logging.DEBUG) and df is not None:
-                logger.debug('INCOMING statistics')
+                logger.debug("INCOMING statistics")
                 # Логируем RSS процесса и объекты в RAM
                 rss_process_statistic(df)
                 # Логируем потребление памяти по cgroup
@@ -103,7 +103,7 @@ def memory_monitor_transformer(cls):
 
             # Диагностика RAM ПОСЛЕ выполнения логики метода
             if logger.isEnabledFor(logging.DEBUG) and isinstance(result, pd.DataFrame):
-                logger.debug('OUTPUT statistics')
+                logger.debug("OUTPUT statistics")
                 rss_process_statistic(result)
                 cgroup_memory_statistic()
 
@@ -115,7 +115,11 @@ def memory_monitor_transformer(cls):
     # getattr(cls, name, None) - принимает имя объекта(наш класс) и название его метода в формате "str",
     # и возвращает cls.method, если такого метода нет, то возвращает третий аргумент(у нас None).
     # hasattr(cls, name) возвращает True, если у объекта действительно есть атрибут с этим именем.
-    dispatcher = {name: getattr(cls, name, None) for name in monitored_methods if hasattr(cls, name)}
+    dispatcher = {
+        name: getattr(cls, name, None)
+        for name in monitored_methods
+        if hasattr(cls, name)
+    }
 
     # Проходим циклом по словарю
     for method_name, method in dispatcher.items():

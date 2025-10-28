@@ -1,17 +1,14 @@
-import os
-import glob
 import datetime
-import logging
 import gc
-
-from typing import List, Optional, Dict, Tuple, Union
-
+import glob
+import logging
+import os
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
-
 
 """
 Создаём локальный логгер для этого модуля
@@ -20,9 +17,9 @@ from tqdm import tqdm
 """
 logger = logging.getLogger(__name__)
 
+
 def cast_columns_by_map(
-        df: pd.DataFrame,
-        cast_type_map: Dict[str, str] = None
+    df: pd.DataFrame, cast_type_map: Dict[str, str] = None
 ) -> pd.DataFrame:
     """
     Меняет типы DataFrame-колонок в соответствии с заданным словарём.
@@ -57,6 +54,8 @@ def cast_columns_by_map(
 Собираем исходный датасет из parquet файлов,  
 скачиваем только необходимые колонки
 """
+
+
 def load_data_chunks(
     path_to_dataset: str,
     start_from: int = 0,
@@ -65,7 +64,7 @@ def load_data_chunks(
     columns: Optional[List[str]] = None,
     cast_type_map: Optional[dict] = None,
     mask: Optional[str] = None,
-    search_file_ext: str = ".pq"
+    search_file_ext: str = ".pq",
 ) -> pd.DataFrame:
     """
     Читает указанные партиции Parquet из директории, объединяет их в DataFrame
@@ -90,7 +89,7 @@ def load_data_chunks(
     Returns:
         pd.DataFrame: Объединённый DataFrame с выбранными колонками и приведёнными типами.
     """
-    logger.info('Starting load_data_chunks function')
+    logger.info("Starting load_data_chunks function")
 
     # Список для накопления прочитанных DataFrame
     res = []
@@ -107,21 +106,21 @@ def load_data_chunks(
         and (not mask or filename.startswith(mask))
     )
 
-    logger.info(f'Found {len(dataset_paths)} dataset paths')
+    logger.info(f"Found {len(dataset_paths)} dataset paths")
 
     # Определяем диапазон файлов для чтения (батч)
     start_from = max(0, start_from)
     chunks = dataset_paths[start_from : start_from + num_parts_to_read]
 
-    logger.info('Reading chunks:')
+    logger.info("Reading chunks:")
     for chunk in chunks:
         logger.info(chunk)
 
     # Выбираем функцию пандас для закачки файлов согласно переданному расширению
     ext_to_reader = {
-        '.pq': lambda path, cols: pd.read_parquet(path, columns=cols),
-        '.parquet': lambda path, cols: pd.read_parquet(path, columns=cols),
-        '.csv': lambda path, cols: pd.read_csv(path, usecols=cols)
+        ".pq": lambda path, cols: pd.read_parquet(path, columns=cols),
+        ".parquet": lambda path, cols: pd.read_parquet(path, columns=cols),
+        ".csv": lambda path, cols: pd.read_csv(path, usecols=cols),
         # можно добавить другие форматы
     }
     reader = ext_to_reader[search_file_ext]
@@ -131,13 +130,10 @@ def load_data_chunks(
         chunks,
         desc="Reading dataset with pandas",
         disable=not verbose,  # tqdm-бар выключен, если verbose=False
-        mininterval=5         # обновление прогресса раз в 5 секунд
+        mininterval=5,  # обновление прогресса раз в 5 секунд
     ):
-        logger.info(f'Reading chunk: {chunk_path}')
-        chunk = reader(
-            path=chunk_path,
-            cols=columns
-        )
+        logger.info(f"Reading chunk: {chunk_path}")
+        chunk = reader(path=chunk_path, cols=columns)
         res.append(chunk)
 
     # Объединяем все прочитанные DataFrame в один
@@ -146,21 +142,21 @@ def load_data_chunks(
     # Приводим колонки датафрейма к нужному типу, если словарь типов задан
     result = cast_columns_by_map(result, cast_type_map)
 
-    logger.info(f'Finished load_data_chunks (read {len(result)} rows)')
+    logger.info(f"Finished load_data_chunks (read {len(result)} rows)")
 
     return result
 
 
 def load_dataset(
-        path_to_dataset: str,
-        num_parts_total: int,
-        save_to_path: Optional[str] = None,
-        num_parts_to_preprocess_at_once: int = 1,
-        verbose: bool = False,
-        columns: Optional[List[str]] = None,
-        cast_type_map: Optional[dict] = None,
-        mask: Optional[str] = None,
-        search_file_ext: str = ".pq"
+    path_to_dataset: str,
+    num_parts_total: int,
+    save_to_path: Optional[str] = None,
+    num_parts_to_preprocess_at_once: int = 1,
+    verbose: bool = False,
+    columns: Optional[List[str]] = None,
+    cast_type_map: Optional[dict] = None,
+    mask: Optional[str] = None,
+    search_file_ext: str = ".pq",
 ) -> pd.DataFrame:
     """
     Обёртка для функции load_data_chunks.
@@ -190,18 +186,19 @@ def load_dataset(
     Returns:
         pd.DataFrame : датафрейм с объединёнными данными
     """
-    logger.info('Starting load_dataset function')
+    logger.info("Starting load_dataset function")
 
     # Финальный датафрейм для объединения всех частей
     result = None
 
     # tqdm организует прогресс-бар по всему процессу загрузки
     # disable=not verbose — бар отключится если verbose=False
-    for step in tqdm(range(0, num_parts_total, num_parts_to_preprocess_at_once),
-                     desc="Loading entire data",
-                     disable=not verbose
-                     ):
-        logger.info(f'Processing step {step}')
+    for step in tqdm(
+        range(0, num_parts_total, num_parts_to_preprocess_at_once),
+        desc="Loading entire data",
+        disable=not verbose,
+    ):
+        logger.info(f"Processing step {step}")
 
         # Загружаем одну или несколько партиций (батч)
         # с помощью функции load_data_chunks
@@ -213,7 +210,7 @@ def load_dataset(
             columns=columns,
             cast_type_map=cast_type_map,
             mask=mask,
-            search_file_ext=search_file_ext
+            search_file_ext=search_file_ext,
         )
 
         # Если указан путь для сохранения — сохраняем обработанный
@@ -221,7 +218,9 @@ def load_dataset(
         # Мzfill - "заполняет" строку нулями слева до указанной длины
         if save_to_path:
             block_as_str = str(step).zfill(3)
-            save_file = os.path.join(save_to_path, f'processed_chunk_{block_as_str}.parquet')
+            save_file = os.path.join(
+                save_to_path, f"processed_chunk_{block_as_str}.parquet"
+            )
             transactions_frame.to_parquet(save_file)
 
             logger.info(f'Saved to "{save_file}"')
@@ -237,17 +236,17 @@ def load_dataset(
         del transactions_frame
         gc.collect()
 
-    logger.info(f'Finished load_dataset (total rows: {len(result)})')
+    logger.info(f"Finished load_dataset (total rows: {len(result)})")
 
     return result
 
 
 def split_dataset_by_target(
-        dataset: pd.DataFrame,
-        path_to_target: str,
-        train_size: float,
-        random_state: int,
-        stratify_col: str
+    dataset: pd.DataFrame,
+    path_to_target: str,
+    train_size: float,
+    random_state: int,
+    stratify_col: str,
 ) -> Dict[str, pd.DataFrame]:
     """
     Разделяет датасет на train/test на основе разделения
@@ -263,7 +262,7 @@ def split_dataset_by_target(
     Returns:
         Dict с 'X_train', 'y_train', 'X_test', 'y_test'
     """
-    logger.info('Starting split_dataset_by_target')
+    logger.info("Starting split_dataset_by_target")
 
     # Загружаем датасет с целевой переменной
     target = pd.read_csv(path_to_target)
@@ -274,46 +273,49 @@ def split_dataset_by_target(
         target,
         train_size=train_size,
         random_state=random_state,
-        stratify=target[stratify_col])
+        stratify=target[stratify_col],
+    )
 
     # Отсортируем результат по id
-    y_train = y_train.sort_values(by='id').reset_index(drop=True)
-    y_test = y_test.sort_values(by='id').reset_index(drop=True)
+    y_train = y_train.sort_values(by="id").reset_index(drop=True)
+    y_test = y_test.sort_values(by="id").reset_index(drop=True)
 
     # Забираем наборы id из train/test
-    train_id = y_train['id'].values
-    test_id = y_test['id'].values
+    train_id = y_train["id"].values
+    test_id = y_test["id"].values
 
     # На основе наборов id делим исходный датасет на train/test части
     # сортируем для приведения к порядку идентичному с id таргета
-    X_train = dataset[dataset['id'].isin(train_id)].sort_values(by='id').reset_index(drop=True)
-    X_test = dataset[dataset['id'].isin(test_id)].sort_values(by='id').reset_index(drop=True)
+    X_train = (
+        dataset[dataset["id"].isin(train_id)]
+        .sort_values(by="id")
+        .reset_index(drop=True)
+    )
+    X_test = (
+        dataset[dataset["id"].isin(test_id)].sort_values(by="id").reset_index(drop=True)
+    )
 
     # Сбросим индексы наборов таргета для приведения к единому виду с X_train/X_test
     y_train = y_train.reset_index(drop=True)[stratify_col]
     y_test = y_test.reset_index(drop=True)[stratify_col]
 
-    logger.info(f'Split completed:'
-                    f' X_train {X_train.shape}'
-                    f' X_test {X_test.shape}'
-                    f' y_train {y_train.shape}'
-                    f' y_test {y_test.shape}'
-                    )
+    logger.info(
+        f"Split completed:"
+        f" X_train {X_train.shape}"
+        f" X_test {X_test.shape}"
+        f" y_train {y_train.shape}"
+        f" y_test {y_test.shape}"
+    )
 
-    return {
-        'X_train': X_train,
-        'y_train': y_train,
-        'X_test': X_test,
-        'y_test': y_test
-    }
+    return {"X_train": X_train, "y_train": y_train, "X_test": X_test, "y_test": y_test}
 
 
 def split_target_only(
-        path_to_target: str,
-        train_size: float,
-        random_state: int,
-        stratify_col: str,
-        verbose: bool = False
+    path_to_target: str,
+    train_size: float,
+    random_state: int,
+    stratify_col: str,
+    verbose: bool = False,
 ):
     """
     Разделяет только таргет на train/test подвыборки.
@@ -330,33 +332,20 @@ def split_target_only(
     """
     target = pd.read_csv(path_to_target)
     if verbose:
-        print(f'Loaded target from {path_to_target}'
-              f' (shape: {target.shape}'
-              )
+        print(f"Loaded target from {path_to_target} (shape: {target.shape}")
 
     y_train, y_test = train_test_split(
         target,
         train_size=train_size,
         random_state=random_state,
-        stratify=target[stratify_col]
+        stratify=target[stratify_col],
     )
     if verbose:
-        print(
-            f'y_train shape: {y_train.shape}\n'
-            f'y_test shape: {y_test.shape}'
-        )
-    return {
-        'y_train': y_train[stratify_col],
-        'y_test': y_test[stratify_col]
-    }
+        print(f"y_train shape: {y_train.shape}\ny_test shape: {y_test.shape}")
+    return {"y_train": y_train[stratify_col], "y_test": y_test[stratify_col]}
 
 
-def make_file_path(
-        output_type: str,
-        data_path: str,
-        output_dir: str,
-        ext: str
-) -> str:
+def make_file_path(output_type: str, data_path: str, output_dir: str, ext: str) -> str:
     """
     Формирует путь для сохранения файла предсказаний с уникальным именем, включающим тип вывода,
     имя исходной папки с данными и текущую дату/время.
@@ -417,7 +406,7 @@ def check_data_folder_and_count_files(
     if files_count == 0:
         raise ValueError(f"No files matching '{pattern}' in {data_path}")
 
-    logger.info(f'Count of files in data folder: {files_count}')
+    logger.info(f"Count of files in data folder: {files_count}")
 
     return file_paths, files_count
 
@@ -426,7 +415,7 @@ def save_predictions_with_id(
     output_type: str,
     ids: Union[np.ndarray, pd.Series, list],
     predictions: np.ndarray,
-    output_path: str
+    output_path: str,
 ):
     """
     Сохраняет предсказания (proba или predict) вместе с id в .csv
@@ -443,24 +432,26 @@ def save_predictions_with_id(
     """
     logger.info("Started save_predictions_with_id function")
     df_pred = pd.DataFrame()
-    df_pred['id'] = ids
+    df_pred["id"] = ids
 
     # Для вероятностей
-    if output_type == 'proba':
+    if output_type == "proba":
         # Для вероятности одного класса
         # (бинарная после слайсинга [:, 1])
         if predictions.ndim == 1:
-            df_pred['proba'] = predictions
+            df_pred["proba"] = predictions
         # Для бинарной и многоклассовой классификации
         elif predictions.ndim == 2:
             # Присвоим каждой вероятности свою колонку
             for i in range(predictions.shape[1]):
-                df_pred[f'proba_class_{i}'] = predictions[:, i]
+                df_pred[f"proba_class_{i}"] = predictions[:, i]
         else:
-            raise ValueError(f"Unsupported predictions shape for proba: {predictions.shape}")
+            raise ValueError(
+                f"Unsupported predictions shape for proba: {predictions.shape}"
+            )
     # Для меток классов
-    elif output_type == 'predict':
-        df_pred['prediction'] = predictions
+    elif output_type == "predict":
+        df_pred["prediction"] = predictions
     else:
         raise ValueError(f"Unsupported output_type: {output_type}")
 
@@ -470,8 +461,6 @@ def save_predictions_with_id(
 # Добавим защитный блок main для тестов
 if __name__ == "__main__":
     # Настройка логгера только для standalone запуска
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(message)s')
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
 
     pass

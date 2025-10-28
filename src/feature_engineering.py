@@ -1,16 +1,12 @@
-import logging
-from typing import Any, List, Dict
 import gc
+import logging
+from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 
-from src.memory_utils import (
-    rss_process_statistic,
-    heap_trim,
-    cgroup_memory_statistic
-)
 from src.decorators import memory_monitor_function
+from src.memory_utils import cgroup_memory_statistic, heap_trim, rss_process_statistic
 
 """
 Создаём локальный логгер для этого модуля
@@ -23,9 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 @memory_monitor_function
-def rn_max_feature_pipeline(
-        df: pd.DataFrame
-) -> pd.DataFrame:
+def rn_max_feature_pipeline(df: pd.DataFrame) -> pd.DataFrame:
     """
     Добавляет в DataFrame новую колонку 'rn_max' — максимальное
     значение 'rn' для каждой группы 'id'.
@@ -39,20 +33,19 @@ def rn_max_feature_pipeline(
     """
 
     # Для каждой строки определяем максимальное значение 'rn' среди всех строк с тем же 'id'
-    #Метод transform('max') возвращает Series длины исходного DataFrame, где для каждой строки
-    #указано максимальное значение 'rn' в её группе 'id'.
+    # Метод transform('max') возвращает Series длины исходного DataFrame, где для каждой строки
+    # указано максимальное значение 'rn' в её группе 'id'.
 
-    df['rn_max'] = df.groupby('id')['rn'].transform('max')
+    df["rn_max"] = df.groupby("id")["rn"].transform("max")
 
     # Удаляем уже не нужный столбец для экономии памяти
-    df = df.drop('rn', axis=1)
+    df = df.drop("rn", axis=1)
 
     return df
 
+
 @memory_monitor_function
-def enc_paym_transcoding_pipeline(
-        df: pd.DataFrame
-) -> pd.DataFrame:
+def enc_paym_transcoding_pipeline(df: pd.DataFrame) -> pd.DataFrame:
     """
     Прекодирует признаки enc_paym_features к единому виду с диапазоном значений {0, 1, 2, 3}.
     Для каждого столбца enc_paym_0, enc_paym_1, ..., enc_paym_24,
@@ -70,7 +63,7 @@ def enc_paym_transcoding_pipeline(
     """
 
     # Список колонок для перекодировки
-    columns = [col for col in df.columns if col.startswith('enc_paym_')]
+    columns = [col for col in df.columns if col.startswith("enc_paym_")]
 
     # Заменяем значения в любом случае, а не только если есть 4
     for col in columns:
@@ -81,8 +74,7 @@ def enc_paym_transcoding_pipeline(
 
 @memory_monitor_function
 def enc_paym_norm_group_sum_diff_pipeline(
-        df: pd.DataFrame,
-        drop_list: List[str]
+    df: pd.DataFrame, drop_list: List[str]
 ) -> pd.DataFrame:
     """
     Генерирует признаки разницы между средними количествами различных статусов платежей
@@ -113,25 +105,22 @@ def enc_paym_norm_group_sum_diff_pipeline(
       чтобы зафиксировать дополнительные параметры заранее.
     """
 
-    logger.info('NEW temporary features')
+    logger.info("NEW temporary features")
 
     # Создаём временный датафрейм со столбцом id из df
-    df_buff = pd.DataFrame(data=df['id'], columns=['id'])
+    df_buff = pd.DataFrame(data=df["id"], columns=["id"])
 
     # Временной промежуток 'all' — все периоды
-    time_span = 'all'
-    columns = [f'enc_paym_{i}' for i in range(25)]
+    time_span = "all"
+    columns = [f"enc_paym_{i}" for i in range(25)]
 
     # Для статусов платежей по кредитам 1 и 2
     for i in range(1, 3):
-        new_col = f'enc_paym_avg_{i}_{time_span}'
+        new_col = f"enc_paym_avg_{i}_{time_span}"
         logger.info(new_col)
 
         # Считаем количество статуса i по всем столбцам за период
-        df_buff[new_col] = np.sum(
-            [df[col] == i for col in columns],
-            axis=0
-        )
+        df_buff[new_col] = np.sum([df[col] == i for col in columns], axis=0)
         """
         Суммируем значения признака new_col по всем строкам с одинаковым id,
         затем делим на количество записей по этому id (rn_max),
@@ -139,24 +128,20 @@ def enc_paym_norm_group_sum_diff_pipeline(
         Cохраняем результат в новый столбец DataFrame с именем new_col.
         """
         df[new_col] = (
-                df_buff[new_col].groupby(df_buff['id']).transform('sum')
-                / df['rn_max']
+            df_buff[new_col].groupby(df_buff["id"]).transform("sum") / df["rn_max"]
         )
 
     # Временной промежуток 'this_year' — первые 12 месяцев
-    time_span = 'this_year'
-    columns = [f'enc_paym_{i}' for i in range(12)]
+    time_span = "this_year"
+    columns = [f"enc_paym_{i}" for i in range(12)]
 
     # Для статусов платежей по кредитам 0 и 1
     for i in range(2):
-        new_col = f'enc_paym_avg_{i}_{time_span}'
+        new_col = f"enc_paym_avg_{i}_{time_span}"
         logger.info(new_col)
 
         # Считаем количество статуса i по всем столбцам за период
-        df_buff[new_col] = np.sum(
-            [df[col] == i for col in columns],
-            axis=0
-        )
+        df_buff[new_col] = np.sum([df[col] == i for col in columns], axis=0)
         """
         Суммируем значения признака new_col по всем строкам с одинаковым id,
         затем делим на количество записей по этому id (rn_max),
@@ -164,27 +149,23 @@ def enc_paym_norm_group_sum_diff_pipeline(
         Cохраняем результат в новый столбец DataFrame с именем new_col.
         """
         df[new_col] = (
-                df_buff[new_col].groupby(df_buff['id']).transform('sum')
-                / df['rn_max']
+            df_buff[new_col].groupby(df_buff["id"]).transform("sum") / df["rn_max"]
         )
 
     # Временной промежуток 'last_year' — месяцы с 12 по 24
-    time_span = 'last_year'
-    columns = [f'enc_paym_{i}' for i in range(12, 25)]
+    time_span = "last_year"
+    columns = [f"enc_paym_{i}" for i in range(12, 25)]
 
     """
     Статус платежей  0.
     (Оставим цикл для единообразия кода)
     """
     for i in [0]:
-        new_col = f'enc_paym_avg_{i}_{time_span}'
+        new_col = f"enc_paym_avg_{i}_{time_span}"
         logger.info(new_col)
 
         # Считаем количество статуса i по всем столбцам за период
-        df_buff[new_col] = np.sum(
-            [df[old_col] == i for old_col in columns],
-            axis=0
-        )
+        df_buff[new_col] = np.sum([df[old_col] == i for old_col in columns], axis=0)
         """
         Суммируем значения признака new_col по всем строкам с одинаковым id,
         затем делим на количество записей по этому id (rn_max),
@@ -192,8 +173,7 @@ def enc_paym_norm_group_sum_diff_pipeline(
         Cохраняем результат в новый столбец DataFrame с именем new_col.
         """
         df[new_col] = (
-                df_buff[new_col].groupby(df_buff['id']).transform('sum')
-                / df['rn_max']
+            df_buff[new_col].groupby(df_buff["id"]).transform("sum") / df["rn_max"]
         )
 
     # Удаляем временный df_buff
@@ -201,19 +181,16 @@ def enc_paym_norm_group_sum_diff_pipeline(
     gc.collect()
 
     # Создаём фичи разницы
-    df['enc_paym_avg_0_1_this_year_diff'] = (
-            df['enc_paym_avg_0_this_year'] -
-            df['enc_paym_avg_1_this_year']
+    df["enc_paym_avg_0_1_this_year_diff"] = (
+        df["enc_paym_avg_0_this_year"] - df["enc_paym_avg_1_this_year"]
     )
 
-    df['enc_paym_avg_1_2_all_diff'] = (
-            df['enc_paym_avg_1_all'] -
-            df['enc_paym_avg_2_all']
+    df["enc_paym_avg_1_2_all_diff"] = (
+        df["enc_paym_avg_1_all"] - df["enc_paym_avg_2_all"]
     )
 
-    df['enc_paym_avg_0_years_diff'] = (
-            df['enc_paym_avg_0_this_year'] -
-            df['enc_paym_avg_0_last_year']
+    df["enc_paym_avg_0_years_diff"] = (
+        df["enc_paym_avg_0_this_year"] - df["enc_paym_avg_0_last_year"]
     )
 
     logger.info("""\
@@ -221,8 +198,7 @@ NEW difference columns
 enc_paym_avg_0_1_this_year_diff
 enc_paym_avg_1_2_all_diff
 enc_paym_avg_0_years_diff
-"""
-                )
+""")
 
     # Удаляем уже не нужные колонки
     df = df.drop(drop_list, axis=1)
@@ -231,12 +207,9 @@ enc_paym_avg_0_years_diff
     return df
 
 
-
 @memory_monitor_function
 def mean_value_frequency_feature_pipeline(
-        df: pd.DataFrame,
-        columns_list: List[str],
-        drop_list: List[str] = None
+    df: pd.DataFrame, columns_list: List[str], drop_list: List[str] = None
 ) -> pd.DataFrame:
     """
     Cоздаёт новые агрегированные признаки,
@@ -263,10 +236,10 @@ def mean_value_frequency_feature_pipeline(
       чтобы зафиксировать дополнительные параметры заранее.
     """
 
-    logger.info('NEW features')
+    logger.info("NEW features")
 
     for col in columns_list:
-        new_col = f'{col}_mean_freq'
+        new_col = f"{col}_mean_freq"
         logger.info(new_col)
 
         # Вычисляем относительную частоту каждого уникального значения в столбце
@@ -279,7 +252,7 @@ def mean_value_frequency_feature_pipeline(
         делим сумму на количество записей для этого id.
         Результат сохраняем в новый столбец new_col.
         """
-        df[new_col] = freq_series.groupby(df['id']).transform('sum') / df['rn_max']
+        df[new_col] = freq_series.groupby(df["id"]).transform("sum") / df["rn_max"]
 
         # Удаляем временные переменные для экономии памяти
         del freq_series, bin_freq
@@ -296,9 +269,9 @@ def mean_value_frequency_feature_pipeline(
 
 @memory_monitor_function
 def definite_value_proportion_features_pipeline(
-        df: pd.DataFrame,
-        features_dictionary: Dict[str, Any],
-        float_downcast_columns_list: List[str] = None
+    df: pd.DataFrame,
+    features_dictionary: Dict[str, Any],
+    float_downcast_columns_list: List[str] = None,
 ) -> pd.DataFrame:
     """
     Создаёт и добавляет в датафрейм новые частотные признаки
@@ -329,33 +302,32 @@ def definite_value_proportion_features_pipeline(
 
     # Итерируем по ключам
     for col in features_dictionary.keys():
-
-        logger.debug('BEFORE column statistics')
+        logger.debug("BEFORE column statistics")
         # Проверим RSS процесса и объекты в RAM
         rss_process_statistic(df)
         # Проверим потребление памяти по cgroup
         cgroup_memory_statistic()
 
-        logger.info('Original feature %s', col)
+        logger.info("Original feature %s", col)
 
-        logger.info('New features')
+        logger.info("New features")
 
         # Итерируем по значениям
         for value in features_dictionary[col]:
-            new_col = f'{col}_prop_{value}'
+            new_col = f"{col}_prop_{value}"
             logger.info(new_col)
 
             """
             Создаём булевую маску: True, если значение в col равно value,
             иначе False.
             """
-            mask = (df[col] == value)
+            mask = df[col] == value
             """
             Для каждой строки вычисляем количество совпадений value 
             по id (transform('sum')) и делим на общее количество кредитов 
             по id (rn_max), чтобы получить долю.
             """
-            df[new_col] = mask.groupby(df['id']).transform('sum') / df['rn_max']
+            df[new_col] = mask.groupby(df["id"]).transform("sum") / df["rn_max"]
 
             # Выведем  тип новой колоноки
             logger.info(f"New column type is: {df[new_col].dtype}")
@@ -364,7 +336,7 @@ def definite_value_proportion_features_pipeline(
             if float_downcast_columns_list is not None:
                 # По условию меняем тип колонки с float64 на float32
                 if new_col in float_downcast_columns_list:
-                    df[new_col] = df[new_col].astype('float32')
+                    df[new_col] = df[new_col].astype("float32")
 
             # Удаляем маску
             del mask
@@ -384,7 +356,7 @@ def definite_value_proportion_features_pipeline(
 
 @memory_monitor_function
 def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
-        df: pd.DataFrame
+    df: pd.DataFrame,
 ) -> pd.DataFrame:
     """
     Вычисляет среднее значение признаков is_zero_*_prop_1 по строкам и добавляет
@@ -398,22 +370,20 @@ def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
     """
 
     columns = [
-        'is_zero_loans5_prop_1',
-        'is_zero_loans530_prop_1',
-        'is_zero_loans3060_prop_1',
-        'is_zero_loans6090_prop_1',
-        'is_zero_loans90_prop_1'
+        "is_zero_loans5_prop_1",
+        "is_zero_loans530_prop_1",
+        "is_zero_loans3060_prop_1",
+        "is_zero_loans6090_prop_1",
+        "is_zero_loans90_prop_1",
     ]
 
-    df['is_zero_sum_prop_1'] = df[columns].sum(axis=1) / 5
+    df["is_zero_sum_prop_1"] = df[columns].sum(axis=1) / 5
 
     return df
 
 
 @memory_monitor_function
-def pre_since_opened_sum_mean_repeated_pipeline(
-        df: pd.DataFrame
-) -> pd.DataFrame:
+def pre_since_opened_sum_mean_repeated_pipeline(df: pd.DataFrame) -> pd.DataFrame:
     """
     Cоздаёт признак, отражающий пропорцию повторяющихся значений 'pre_since_opened'
     для каждого 'id'.
@@ -434,9 +404,9 @@ def pre_since_opened_sum_mean_repeated_pipeline(
         pandas.DataFrame :  Копия DataFrame с
         добавленным признаком 'pre_since_opened_repeated_prop'.
     """
-    
+
     # Считаем количество каждого значения 'pre_since_opened' для каждого 'id'
-    counts = df.groupby(['id', 'pre_since_opened']).size()
+    counts = df.groupby(["id", "pre_since_opened"]).size()
 
     """
     Оставляем только повторяющиеся значения (количество > 1), 
@@ -445,41 +415,33 @@ def pre_since_opened_sum_mean_repeated_pipeline(
     repeated_pre_since_opened = counts[counts > 1] - 1
 
     # Суммируем количество повторов по каждому 'id'
-    sum_repeated = repeated_pre_since_opened.groupby('id').sum()
+    sum_repeated = repeated_pre_since_opened.groupby("id").sum()
 
     # Добавляем отсутствующие 'id' с нулевыми значениями повторов
-    all_sum_repeated = sum_repeated.reindex(df['id'].unique(), fill_value=0)
+    all_sum_repeated = sum_repeated.reindex(df["id"].unique(), fill_value=0)
 
     # Добавляем новый столбец: для каждого 'id' записываем рассчитанную сумму повторов
-    df['pre_since_opened_repeated_prop'] = df['id'].map(all_sum_repeated)
+    df["pre_since_opened_repeated_prop"] = df["id"].map(all_sum_repeated)
 
     # Удаляем временные переменные
-    del (
-        counts,
-        repeated_pre_since_opened,
-        sum_repeated,
-        all_sum_repeated
-    )
+    del (counts, repeated_pre_since_opened, sum_repeated, all_sum_repeated)
     gc.collect()
 
     # Нормируем сумму повторов на количество записей 'rn_max' для каждого 'id'
-    df['pre_since_opened_repeated_prop'] = (
-            df['pre_since_opened_repeated_prop'] / df['rn_max']
+    df["pre_since_opened_repeated_prop"] = (
+        df["pre_since_opened_repeated_prop"] / df["rn_max"]
     )
 
     # Понижаем тип новой колонки
-    df['pre_since_opened_repeated_prop'] = (
-        df['pre_since_opened_repeated_prop'].astype('float32')
+    df["pre_since_opened_repeated_prop"] = df["pre_since_opened_repeated_prop"].astype(
+        "float32"
     )
 
     return df
 
 
 @memory_monitor_function
-def drop_columns_pipeline(
-        df: pd.DataFrame,
-        columns_list: List[str]
-) -> pd.DataFrame:
+def drop_columns_pipeline(df: pd.DataFrame, columns_list: List[str]) -> pd.DataFrame:
     """
     Удаляет исходные и временные признаки из DataFrame.
 
@@ -504,13 +466,11 @@ def drop_columns_pipeline(
     # Выведем размер датафрейма
     logger.info(f"After dropping columns DataFrame shape : {df.shape}")
 
-    return  df
+    return df
 
 
 @memory_monitor_function
-def drop_duplicates_pipeline(
-        df: pd.DataFrame
-) -> pd.DataFrame:
+def drop_duplicates_pipeline(df: pd.DataFrame) -> pd.DataFrame:
     """
     Удаляет  дубликаты по столбцу 'id', оставляя только первую запись.
     После удаления дубликатов столбец 'id' также удаляется.
@@ -527,14 +487,14 @@ def drop_duplicates_pipeline(
 
     # Удаляем дубликаты через группировку - оставляем первое появление каждого 'id'
     # Потребляет меньше RAM чем стандартный drop_duplicates()
-    df = df.groupby('id', as_index=False).first()
+    df = df.groupby("id", as_index=False).first()
 
     logger.debug("Duplicates dropped successfully")
     # Выведем размер датафрейма
     logger.info(f"DataFrame shape after dropping duplicates: {df.shape}")
 
     # Удаляем столбец 'id', так как он больше не нужен
-    df = df.drop('id', axis=1)
+    df = df.drop("id", axis=1)
     logger.debug("id dropped successfully")
 
     # Выведем размер датафрейма и типы колонок
@@ -543,12 +503,11 @@ def drop_duplicates_pipeline(
     return df
 
 
-
 # Добавим защитный блок main для тестов
 if __name__ == "__main__":
     # Настройка логгера только для standalone запуска
     logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s - %(levelname)s - %(message)s')
+        level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
     pass

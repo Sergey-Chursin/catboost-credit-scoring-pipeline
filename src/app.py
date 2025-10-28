@@ -35,18 +35,15 @@ model_info: строка с краткой информацией о модел�
 запросы к любому endpoint прямо из браузера.
 """
 
-import pandas as pd
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
+import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from src.pipeline import load_pipeline
-from src.config import (
-    PIPELINE_PATH,
-    THRESHOLD
-)
+from src.config import PIPELINE_PATH, THRESHOLD
 from src.log_config import setup_logging
+from src.pipeline import load_pipeline
 
 # Создадим объект FastAPI
 app = FastAPI(title="Credit-Scoring API", version="1.0.0")
@@ -60,6 +57,7 @@ logger = setup_logging("info")
 
 # Загружаем обученный пайплайн
 pipeline = load_pipeline(PIPELINE_PATH, logger)
+
 
 # Создаём схему запроса
 # Определяем вложенную модель (структуру признаков одного объекта)
@@ -117,10 +115,12 @@ class FeatureVector(BaseModel):
     enc_paym_22: int
     enc_paym_23: int
 
+
 # Второй моделью делаем запрос – список объектов FeatureVector
 # Запрос - это словарь с одним ключом 'data' и списком словарей внутри
 class PredictionRequest(BaseModel):
     data: List[FeatureVector]
+
 
 # Модель ответа - список словарей(1 словарь = 1 клиент) и информация о модели
 class PredictionResponse(BaseModel):
@@ -167,17 +167,15 @@ async def predict(request: PredictionRequest):
     # возвращаемые пайплайном.
     # df["id"].unique() - обрабатывает случаи с несколькими записями для одного клиента
     resp = [
-        {
-            "client_id": int(id),
-            "probability": float(prob),
-            "class": int(label)
-        }
+        {"client_id": int(id), "probability": float(prob), "class": int(label)}
         for id, prob, label in zip(df["id"].unique(), proba, pred)
     ]
     # Создаём экземпляр схемы-ответа, автоматически сериализуем в JSON
     return PredictionResponse(predictions=resp)
 
+
 # Локальный запуск для проверки
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("src.app:app", host="0.0.0.0", port=8000)

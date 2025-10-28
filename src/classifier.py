@@ -1,14 +1,11 @@
 import logging
-
-from  typing import Optional, List, Dict
+from typing import Dict, List, Optional
 
 import numpy as np
-import pandas as pd
-
 from catboost import CatBoostClassifier, Pool
-
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import StratifiedKFold
+
 
 class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
     """
@@ -40,6 +37,7 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
         predict(X): Возвращает бинарные предсказания
             с порогом 0.5 по умолчанию или переданному.
     """
+
     def __init__(
         self,
         params_list: List[Dict],
@@ -49,7 +47,7 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
         n_splits: int = 5,
         seed: int = 0,
         shuffle: bool = True,
-        logger: Optional[logging.Logger] = None
+        logger: Optional[logging.Logger] = None,
     ):
         """
         Args:
@@ -93,21 +91,18 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
               содержащим список обученных моделей.
         """
         if self.logger is not None:
-            self.logger.info('CLASSIFIER fit')
-
+            self.logger.info("CLASSIFIER fit")
 
         self.models_ = []
         kf = StratifiedKFold(
-            n_splits=self.n_splits,
-            shuffle=self.shuffle,
-            random_state=self.seed
+            n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.seed
         )
 
         # Обучаем N моделей на разных фолдах
         for i, (train_idx, val_idx) in enumerate(kf.split(X, y)):
             # Выводим номер фолда в лог
             if self.logger is not None:
-                self.logger.info('Fit fold %s', i)
+                self.logger.info("Fit fold %s", i)
 
             X_train = X.iloc[train_idx]
             y_train = y.iloc[train_idx]
@@ -115,15 +110,9 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
             y_val = y.iloc[val_idx]
 
             train_pool = Pool(
-                data=X_train,
-                label=y_train,
-                cat_features=self.cat_features
+                data=X_train, label=y_train, cat_features=self.cat_features
             )
-            val_pool = Pool(
-                data=X_val,
-                label=y_val,
-                cat_features=self.cat_features
-            )
+            val_pool = Pool(data=X_val, label=y_val, cat_features=self.cat_features)
             """
             Для обучения используются валидационные подвыборки, 
             для остановки обучения вместо ГП early_stopping_rounds
@@ -133,42 +122,29 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
             # Выводим гиперпараметры в лог
             if self.logger is not None:
-                self.logger.info('Params for fold %s', params)
+                self.logger.info("Params for fold %s", params)
 
-            model = CatBoostClassifier(
-                **params
-            )
-            model.fit(
-                train_pool,
-                eval_set=val_pool
-            )
+            model = CatBoostClassifier(**params)
+            model.fit(train_pool, eval_set=val_pool)
             self.models_.append(model)
 
         # Обучаем финальную модель на полном наборе данных
         if self.logger is not None:
-            self.logger.info('Fit final model')
-        train_pool = Pool(
-            data=X,
-            label=y,
-            cat_features=self.cat_features
-        )
+            self.logger.info("Fit final model")
+        train_pool = Pool(data=X, label=y, cat_features=self.cat_features)
         params = self.params_list[self.n_splits]
         # Выводим гиперпараметры в лог
         if self.logger is not None:
-            self.logger.info('Params for final model  %s', params)
+            self.logger.info("Params for final model  %s", params)
 
-        model = CatBoostClassifier(
-            **params
-        )
-        model.fit(
-            train_pool
-        )
+        model = CatBoostClassifier(**params)
+        model.fit(train_pool)
         self.models_.append(model)
         return self
 
     def fit_transform(self, X, y=None):
         if self.logger is not None:
-            self.logger.info('CLASSIFIER fit_transform')
+            self.logger.info("CLASSIFIER fit_transform")
         # Обучаем классификатор
         self.fit(X, y)
         # Возвращаем X без изменений
@@ -176,7 +152,7 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
     def transform(self, X):
         if self.logger is not None:
-            self.logger.info('CLASSIFIER transform')
+            self.logger.info("CLASSIFIER transform")
         # Возвращаем X без изменений
         return X
 
@@ -193,7 +169,7 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
             размерностью (n_samples, 2).
         """
         if self.logger is not None:
-            self.logger.info('CLASSIFIER predict_proba')
+            self.logger.info("CLASSIFIER predict_proba")
 
         preds = []
         for model, weight in zip(self.models_, self.weights_list):
@@ -216,6 +192,6 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
             np.ndarray: Массив предсказанных классов (0 или 1).
         """
         if self.logger is not None:
-            self.logger.info('CLASSIFIER predict')
+            self.logger.info("CLASSIFIER predict")
         proba = self.predict_proba(X)[:, 1]
         return (proba >= self.threshold).astype(int)

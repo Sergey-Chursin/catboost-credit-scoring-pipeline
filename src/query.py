@@ -1,26 +1,21 @@
 import os
+
 import pandas as pd
+
 pd.set_option("display.max_columns", None)
 import json
+
 import requests
-from src.config import (
-    PRE_FEATURES,
-    RAW_DATA_PATH,
-    TRANSFORM_DATA_PATH
-)
+
+from src.config import PRE_FEATURES, RAW_DATA_PATH, TRANSFORM_DATA_PATH
 from src.data_utils import load_dataset
 
 if __name__ == "__main__":
-    data = load_dataset(
-            RAW_DATA_PATH,
-            num_parts_total=1,
-            columns=PRE_FEATURES
-    )
+    data = load_dataset(RAW_DATA_PATH, num_parts_total=1, columns=PRE_FEATURES)
     print("data.shape:", data.shape)
 
-
     # СОБЕРЁМ ЗАПРОС С ОДНИМ КЛИЕНТОМ С ОДНИМ КРЕДИТОМ
-    print('ONE CLIENT WITH ONE LOAN')
+    print("ONE CLIENT WITH ONE LOAN")
     print(data["id"].value_counts().tail(1))
 
     one_id_one_loan = data[data["id"] == 125000]
@@ -34,13 +29,9 @@ if __name__ == "__main__":
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(one_id_one_loan, f, ensure_ascii=False)
 
-    response = requests.post(
-        url="http://localhost:8000/predict",
-        json=one_id_one_loan
-    )
+    response = requests.post(url="http://localhost:8000/predict", json=one_id_one_loan)
     print("response.status_code:", response.status_code)
     print("response.json:", response.json())
-
 
     # CОБЕРЁМ ЗАПРОС С ОДНИМ КЛИЕНТОМ С НЕСКОЛЬКИМИ КРЕДИТАМИ
     print("ONE CLIENT WITH SEVERAL LOANS")
@@ -57,12 +48,10 @@ if __name__ == "__main__":
         json.dump(one_id_many_loans, f, ensure_ascii=False)
 
     response = requests.post(
-        url="http://localhost:8000/predict",
-        json=one_id_many_loans
+        url="http://localhost:8000/predict", json=one_id_many_loans
     )
     print("response.status_code:", response.status_code)
     print("response.json:", response.json())
-
 
     # CОБЕРЁМ ЗАПРОС С НЕСКОЛЬКИМИ КЛИЕНТАМИ С ОДНИМ КРЕДИТОМ
     print("SEVERAL CLIENTS EACH HAVE ONE LOAN")
@@ -85,13 +74,9 @@ if __name__ == "__main__":
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(many_id_one_loan, f, ensure_ascii=False)
 
-    response = requests.post(
-        url="http://localhost:8000/predict",
-        json=many_id_one_loan
-    )
+    response = requests.post(url="http://localhost:8000/predict", json=many_id_one_loan)
     print("response.status_code:", response.status_code)
     print("response.json:", response.json())
-
 
     # CОБЕРЁМ ЗАПРОС С НЕСКОЛЬКИМИ КЛИЕНТАМИ С НЕСКОЛЬКИМИ КРЕДИТАМИ
     print("SEVERAL CLIENTS EACH HAVE SEVERAL LOANS")
@@ -115,12 +100,10 @@ if __name__ == "__main__":
         json.dump(many_id_many_loans, f, ensure_ascii=False)
 
     response = requests.post(
-        url="http://localhost:8000/predict",
-        json=many_id_many_loans
+        url="http://localhost:8000/predict", json=many_id_many_loans
     )
     print("response.status_code:", response.status_code)
     print("response.json:", response.json())
-
 
     # СРАВНИМ РЕЗУЛЬТАТЫ С РЕЗУЛЬТАТАМИ ОБЩЕГО ПРЕДИКТА ПОЛУЧЕННОГО В INFERENCE РЕЖИМЕ
     """

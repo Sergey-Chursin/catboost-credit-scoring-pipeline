@@ -1,7 +1,8 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pytest
 from src.classifier import CatBoostEnsembleClassifier
+
 
 # декораторо @pytest.fixture определяет фикстуру - делает результат функции доступным
 # для использования в тестовых функциях
@@ -13,22 +14,28 @@ def sample_data():
 
     # по 500 объектов на класс
     n_per_class = 500
-    X = pd.DataFrame({
-        # Признак f1:
-        # - первые 500 значений: нормальное распределение со средним 0
-        # - вторые 500 значений: нормальное распределение, но сдвинутое на +1 по среднему
-        "f1": np.concatenate(
-            [np.random.randn(n_per_class),      # класс 0
-             np.random.randn(n_per_class) + 1]  # класс 1
-        ),
-        # Признак f2:
-        # - первые 500 значений: нормальное N(0, σ=5)
-        # - вторые 500 значений: N(2, σ=5) — т.е. сдвинуто ещё и среднее на +2
-        "f2": np.concatenate(
-            [np.random.randn(n_per_class) * 5,      # класс 0
-             np.random.randn(n_per_class) * 5 + 2]  # класс 1
-        )
-    })
+    X = pd.DataFrame(
+        {
+            # Признак f1:
+            # - первые 500 значений: нормальное распределение со средним 0
+            # - вторые 500 значений: нормальное распределение, но сдвинутое на +1 по среднему
+            "f1": np.concatenate(
+                [
+                    np.random.randn(n_per_class),  # класс 0
+                    np.random.randn(n_per_class) + 1,
+                ]  # класс 1
+            ),
+            # Признак f2:
+            # - первые 500 значений: нормальное N(0, σ=5)
+            # - вторые 500 значений: N(2, σ=5) — т.е. сдвинуто ещё и среднее на +2
+            "f2": np.concatenate(
+                [
+                    np.random.randn(n_per_class) * 5,  # класс 0
+                    np.random.randn(n_per_class) * 5 + 2,
+                ]  # класс 1
+            ),
+        }
+    )
     # Таргет
     # первые 500 объектов — класс 0,
     # следующие 500 — класс 1
@@ -37,27 +44,28 @@ def sample_data():
     return X, y
 
 
-
 @pytest.fixture
 def clf_small():
     """Классификатор с минимальными параметрами, чтобы тесты работали быстро."""
     return CatBoostEnsembleClassifier(
         # 5 фолдов + финальная
-        params_list=[{'iterations': 1, 'verbose': 0}] * 6,
+        params_list=[{"iterations": 1, "verbose": 0}] * 6,
         weights_list=[1] * 6,
-        n_splits=5
+        n_splits=5,
     )
+
 
 def test_init_defaults():
     """Проверяем, что значения по умолчанию в __init__ корректно установлены."""
     clf = CatBoostEnsembleClassifier(
-        params_list=[{'iterations': 1, 'verbose': 0}] * 6,
+        params_list=[{"iterations": 1, "verbose": 0}] * 6,
         weights_list=[1] * 6,
-        n_splits=5
+        n_splits=5,
     )
-    assert clf.threshold == 0.5      # порог классификации по умолчанию — 0.5
-    assert clf.cat_features == []    # список категориальных фич пуст, если не задан
-    assert clf.n_splits == 5          # количество фолдов равно переданному аргументу
+    assert clf.threshold == 0.5  # порог классификации по умолчанию — 0.5
+    assert clf.cat_features == []  # список категориальных фич пуст, если не задан
+    assert clf.n_splits == 5  # количество фолдов равно переданному аргументу
+
 
 def test_fit_creates_models(sample_data, clf_small):
     """
@@ -72,12 +80,14 @@ def test_fit_creates_models(sample_data, clf_small):
     assert all(hasattr(m, "predict") for m in clf_small.models_)
     assert all(hasattr(m, "predict_proba") for m in clf_small.models_)
 
+
 def test_fit_transform_returns_X(sample_data, clf_small):
     """Проверяем что fit_transform возвращает тот же X без изменений."""
     X, y = sample_data
     X_out = clf_small.fit_transform(X, y)
     # Результат должен быть равен исходному DataFrame
     assert X_out.equals(X)
+
 
 def test_predict_proba_shape_and_sum(sample_data, clf_small):
     """Проверка корректности формы и нормировки метода predict_proba."""
@@ -90,10 +100,13 @@ def test_predict_proba_shape_and_sum(sample_data, clf_small):
     # две колонки: вероятности для классов 0 и 1
     assert proba.shape == (len(X), 2)
     np.testing.assert_allclose(
-        proba.sum(axis=1), 1.0, atol=1e-6     # сумма вероятностей по каждой строке ≈ 1
+        proba.sum(axis=1),
+        1.0,
+        atol=1e-6,  # сумма вероятностей по каждой строке ≈ 1
     )
     # np.testing.assert_allclose - проверяет, что два массива “почти равны”
     # не превышая погрешность atol=1e-6
+
 
 def test_predict_output_binary_and_shape(sample_data, clf_small):
     """Проверка корректности формы и меток классов метода predict."""
@@ -106,15 +119,16 @@ def test_predict_output_binary_and_shape(sample_data, clf_small):
     # длина массива предсказаний совпадает с числом объектов
     assert len(preds) == len(X)
 
+
 def test_predict_with_custom_threshold(sample_data):
     """Проверяем влияние порога классификации на количество положительных срабатываний."""
     X, y = sample_data
     # Зададим очень низкий порог чтобы модели чаще предсказывали класс 1
     clf = CatBoostEnsembleClassifier(
-        params_list=[{'iterations': 1, 'verbose': 0}] * 6,
+        params_list=[{"iterations": 1, "verbose": 0}] * 6,
         weights_list=[1] * 6,
         n_splits=5,
-        threshold=0.1
+        threshold=0.1,
     )
     clf.fit(X, y)
     preds_low = clf.predict(X)

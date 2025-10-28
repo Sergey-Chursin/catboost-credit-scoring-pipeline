@@ -1,6 +1,6 @@
-from  typing import Optional, List
-import logging
 import gc
+import logging
+from typing import List, Optional
 
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -28,14 +28,15 @@ class MeanValueFrequencyTransformer(BaseEstimator, TransformerMixin):
     Attributes:
         freq_maps(dict): Словарь где ключи - названия колонок, значения - частотные словари.
         mean_freqs(dict): Словарь где ключи - названия колонок, значения - средняя частота.
-        """
+    """
+
     def __init__(
-            self,
-            norma: str,
-            col_suffix: str = "_mean_freq",
-            columns: Optional[List[str]] = None,
-            drop_list: List[str] = None,
-            logger: Optional[logging.Logger] = None
+        self,
+        norma: str,
+        col_suffix: str = "_mean_freq",
+        columns: Optional[List[str]] = None,
+        drop_list: List[str] = None,
+        logger: Optional[logging.Logger] = None,
     ):
         self.norma = norma
         self.col_suffix = col_suffix
@@ -61,10 +62,10 @@ class MeanValueFrequencyTransformer(BaseEstimator, TransformerMixin):
         # if self.logger is not None:
         #     self.logger.info('FREQUENCY TRANSFORMER transform')
         if self.logger is not None:
-            self.logger.info('NEW features')
+            self.logger.info("NEW features")
         # проходим циклом по колонкам из списка
         for col in self.columns:
-            new_col = f'{col}{self.col_suffix}'
+            new_col = f"{col}{self.col_suffix}"
             if self.logger is not None:
                 self.logger.info(new_col)
             # Создаём Series с частотами значений для каждой строки
@@ -74,7 +75,7 @@ class MeanValueFrequencyTransformer(BaseEstimator, TransformerMixin):
             # Делаем группировку столбца по id и считаем сумму частот в группе,
             # делим сумму на количество записей для этого id.
             # Результат сохраняем в новый столбец new_col.
-            X[new_col] = freq_series.groupby(X['id']).transform('sum') / X[self.norma]
+            X[new_col] = freq_series.groupby(X["id"]).transform("sum") / X[self.norma]
 
             # Удаляем временную переменную для экономии памяти
             del freq_series
@@ -104,4 +105,3 @@ class MeanValueFrequencyTransformer(BaseEstimator, TransformerMixin):
         # if self.logger is not None:
         #     self.logger.info('FREQUENCY TRANSFORMER predict_proba')
         return self.transform(X)
-
