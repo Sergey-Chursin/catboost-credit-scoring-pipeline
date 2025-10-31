@@ -8,73 +8,72 @@ os.path.dirname(__file__) - даёт абсолютный путь до дире
 os.path.join(..., '..')) - даёт путь до директории на уровень выше (root)
 os.path.abspath(...) - даёт абсолютный путь до root
 """
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+PROJECT_ROOT: str = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 # Паттерн расширения для функции check_data_folder_and_count_files
 
-PARQUET_FILE_PATTERN = "*.pq"
+PARQUET_FILE_PATTERN: str = "*.pq"
 
 # Расширение файлов для функции load_data_chunks
-SEARCH_FILE_EXTENSION = ".pq"
+SEARCH_FILE_EXTENSION: str = ".pq"
 
 # Константы для функции load_dataset
 # Путь к директории с исходными данными
-RAW_DATA_PATH = os.path.join(PROJECT_ROOT, "data", "raw")
+RAW_DATA_PATH: str = os.path.join(PROJECT_ROOT, "data", "raw")
 # Путь к директории с техническими данными
-TEMP_DATA_PATH = os.path.join(PROJECT_ROOT, "data", "temp")
+TEMP_DATA_PATH: str = os.path.join(PROJECT_ROOT, "data", "temp")
 
 # Тип расширения для функции make_file_path для сохранения предиктов
 # в run_test_coordinator и run_inference_coordinator
 # и транформированных данных в run_transform_data_coordinator
-SAVE_FILE_EXTENSION = "csv"
+SAVE_FILE_EXTENSION: str = "csv"
 
 # Константы для функции split_dataset_by_target
 # Путь к таргет датасету
-TARGET_PATH = os.path.join(PROJECT_ROOT, "data", "target", "train_target.csv")
+TARGET_PATH: str = os.path.join(PROJECT_ROOT, "data", "target", "train_target.csv")
 # Доля тренировочной выборки
-TRAIN_SIZE = 0.8
+TRAIN_SIZE: float = 0.8
 # Зерно рандома для разделения
-SEED_SPLIT_DATASET = 0
+SEED_SPLIT_DATASET: int = 0
 # Колонка для стратификации
-STRATIFY_COL = "flag"
+STRATIFY_COL: str = "flag"
 
 # Путь сохранения предиктов на новых данных в inference_coordinator
-INFERENCE_OUTPUT_DIR = os.path.join(PROJECT_ROOT, "predictions", "inference")
+INFERENCE_OUTPUT_DIR: str = os.path.join(PROJECT_ROOT, "predictions", "inference")
 
 # Доля датасета для расчета медиан в SampleMedianImputer
-SAMPLE_FRAC = 0.1
-
+SAMPLE_FRAC: float = 0.1
 # Путь сохранения обученного пайплайна
-PIPELINE_PATH = os.path.join(PROJECT_ROOT, "models", "main_pipeline.pkl")
+PIPELINE_PATH: str = os.path.join(PROJECT_ROOT, "models", "main_pipeline.pkl")
 
-DEMO_PIPELINE_PATH = os.path.join(PROJECT_ROOT, "models", "demo_pipeline.pkl")
+DEMO_PIPELINE_PATH: str = os.path.join(PROJECT_ROOT, "models", "demo_pipeline.pkl")
 
 # Путь сохранения предиктов test_coordinator
-TEST_PREDICT_PATH = os.path.join(PROJECT_ROOT, "predictions")
+TEST_PREDICT_PATH: str = os.path.join(PROJECT_ROOT, "predictions")
 
 # Путь сохранения трансформированных данных
-TRANSFORM_DATA_PATH = os.path.join(PROJECT_ROOT, "data", "processed")
+TRANSFORM_DATA_PATH: str = os.path.join(PROJECT_ROOT, "data", "processed")
 
 # Паттерн пути до сохранённого предикта вероятностей на тестовом наборе
-PROBA_TEST_PREDICT_PATTERN = os.path.join(
+PROBA_TEST_PREDICT_PATTERN: str = os.path.join(
     PROJECT_ROOT, "predictions", "proba__raw__*.csv"
 )
 
 # Паттерн пути до сохранённого предикта меток классов на тестовом наборе
-CLASSES_TEST_PREDICT_PATTERN = os.path.join(
+CLASSES_TEST_PREDICT_PATTERN: str = os.path.join(
     PROJECT_ROOT, "predictions", "predict__raw__*.csv"
 )
 
 # Список метрик требующих метки классов для расчета
 # Используется в pred_and_metrics_compatible
-CLASSES_METRIC_LIST = ["acc"]
+CLASSES_METRIC_LIST: list[str] = ["acc"]
 
 """
 Словари и списки признаков для управления функциями 
 pipeline. Собираются в ноутбуке pipeline_config_builder.ipynb и копируются сюда.
 """
 # Список признаков для загрузки из исходного датасета
-PRE_FEATURES = [
+PRE_FEATURES: list[str] = [
     "id",
     "rn",
     "pre_since_opened",
@@ -197,7 +196,7 @@ CAST_TYPE_MAP: dict[str, str] = {
 из-за округления значений.
 Применяется в definite_value_proportion_features_pipeline
 """
-FLOAT_DOWNCAST_COLUMNS_LIST = [
+FLOAT_DOWNCAST_COLUMNS_LIST: list[str] = [
     "pre_util_prop_3",
     "enc_loans_credit_type_prop_0",
     "pre_till_pclose_prop_10",
@@ -242,7 +241,7 @@ FLOAT_DOWNCAST_COLUMNS_LIST = [
 Список колонок на удаление в функции
 enc_paym_norm_group_sum_diff_pipeline
 """
-DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF = [
+DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF: list[str] = [
     "enc_paym_1",
     "enc_paym_2",
     "enc_paym_3",
@@ -275,7 +274,7 @@ DROP_LIST_ENC_PAYM_NORM_GROUP_SUMM_DIFF = [
 для создания фичей средней частотности трансформером
 MeanValueFrequencyTransformer
 """
-MEAN_FREQ_SOURCE_LIST = [
+MEAN_FREQ_SOURCE_LIST: list[str] = [
     "pre_util",
     "pre_loans_credit_limit",
     "pre_since_opened",
@@ -298,14 +297,14 @@ MEAN_FREQ_SOURCE_LIST = [
 Название столбца используемого для нормализации суммы частотностей 
 в трансформере MeanValueFrequencyTransformer
 """
-NORMA = "rn_max"
+NORMA: str = "rn_max"
 
 """
 Список признаков для удаления в функции 
 definite_value_proportion_features_pipeline
 Сформирован вручную
 """
-DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE = [
+DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE: list[str] = [
     "pre_loans530",
     "enc_paym_8",
     "pre_loans5",
@@ -318,7 +317,7 @@ DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE = [
 Словарь пропорциональных признаков 
 для функции definite_value_proportion_features_pipeline
 """
-PROP_FEATURES_DICT = {
+PROP_FEATURES_DICT: dict[str, list[int]] = {
     "pre_loans_next_pay_summ": [5, 0],
     "enc_paym_0": [1],
     "pre_till_fclose": [4, 3, 1],
@@ -351,7 +350,7 @@ PROP_FEATURES_DICT = {
 функцией drop_columns_pipeline
 """
 
-DROP_LIST = [
+DROP_LIST: list[str] = [
     "pre_since_opened",
     "is_zero_loans3060_prop_1",
     "is_zero_loans6090_prop_1",
@@ -385,11 +384,11 @@ DROP_LIST = [
 # Константы классификатора
 
 # Random seed для воспроизводимости
-SEED = 0
+SEED: int = 0
 # Количество фолдов в CatBoostEnsembleClassifier
-N_SPLITS = 5
+N_SPLITS: int = 5
 # Стратификация разделения фолдов в CatBoostEnsembleClassifier
-SHUFFLE = True
+SHUFFLE: bool = True
 # Список категориальных фичей в CatBoostEnsembleClassifier
 CAT_FEATURES: list[str] = []
 
@@ -397,7 +396,7 @@ CAT_FEATURES: list[str] = []
 Список словарей гиперпараметров моделей ансамбля
 подобранных Optuna
 """
-PARAMS_LIST = [
+PARAMS_LIST: list[dict[str, int | float | bool | str]] = [
     {
         "verbose": 0,
         "use_best_model": True,
@@ -530,7 +529,7 @@ PARAMS_LIST = [
 для финальной модели обученной на всех данных это средний 
 AUC моделей фолдов.
 """
-WEIGHTS_LIST = [
+WEIGHTS_LIST: list[float] = [
     0.7558470790046106,
     0.7541369034301536,
     0.7517121820944949,
@@ -544,4 +543,4 @@ WEIGHTS_LIST = [
 Вычисляется в roc_curve_and_treshholds_selections.ipynb 
 в главе Optimal Thresholds selection.
 """
-THRESHOLD = 0.48276
+THRESHOLD: float = 0.48276
