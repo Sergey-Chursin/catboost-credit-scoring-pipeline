@@ -1,12 +1,15 @@
 import gc
 import logging
-from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
 
 from src.decorators import memory_monitor_function
-from src.memory_utils import cgroup_memory_statistic, heap_trim, rss_process_statistic
+from src.memory_utils import (
+    cgroup_memory_statistic,
+    heap_trim,
+    rss_process_statistic,
+)
 
 """
 Создаём локальный логгер для этого модуля
@@ -14,8 +17,6 @@ from src.memory_utils import cgroup_memory_statistic, heap_trim, rss_process_sta
  файла (pipeline.py)
 """
 logger = logging.getLogger(__name__)
-
-# FEATURE ENGINEERING PIPELINE FUNCTIONS
 
 
 @memory_monitor_function
@@ -26,10 +27,10 @@ def rn_max_feature_pipeline(df: pd.DataFrame) -> pd.DataFrame:
     Удаляет исходную колонку 'rn'.
 
     Args:
-        df : Исходный DataFrame, содержащий колонки 'id' и 'rn'.
+        df (pd.DataFrame): Исходный DataFrame, содержащий колонки 'id' и 'rn'.
 
     Returns:
-        pandas.DataFrame : Копия исходного DataFrame с добавленной колонкой 'rn_max'.
+        pd.DataFrame : DataFrame с добавленной колонкой 'rn_max'.
     """
 
     # Для каждой строки определяем максимальное значение 'rn' среди всех строк с тем же 'id'
@@ -56,10 +57,10 @@ def enc_paym_transcoding_pipeline(df: pd.DataFrame) -> pd.DataFrame:
         4 -> 3
 
     Args:
-        df : Исходный DataFrame с колонками 'enc_paym_0' ... 'enc_paym_24'.
+        df (pd.DataFrame): Исходный DataFrame с колонками 'enc_paym_0' ... 'enc_paym_24'.
 
     Returns:
-    pandas.DataFrame : Копия DataFrame с перекодированными признаками.
+        pd.DataFrame : DataFrame с перекодированными признаками.
     """
 
     # Список колонок для перекодировки
@@ -67,14 +68,22 @@ def enc_paym_transcoding_pipeline(df: pd.DataFrame) -> pd.DataFrame:
 
     # Заменяем значения в любом случае, а не только если есть 4
     for col in columns:
-        df.loc[:, col] = df[col].replace({1: 0, 2: 1, 3: 2, 4: 3})
+        df.loc[:, col] = df[col].replace(
+            {
+                1: 0,
+                2: 1,
+                3: 2,
+                4: 3,
+            }
+        )
 
     return df
 
 
 @memory_monitor_function
 def enc_paym_norm_group_sum_diff_pipeline(
-    df: pd.DataFrame, drop_list: List[str]
+    df: pd.DataFrame,
+    drop_list: list[str],
 ) -> pd.DataFrame:
     """
     Генерирует признаки разницы между средними количествами различных статусов платежей
@@ -91,12 +100,11 @@ def enc_paym_norm_group_sum_diff_pipeline(
     которые впоследствии удаляются из итогового датасета.
 
     Args:
-        df :  Исходный DataFrame с признаками из columns_list.
-        drop_list: List[str]: Список уже не нужных признаков,
-            для удаления из датафрейма
+        df (pd.DataFrame):  Исходный DataFrame с признаками из columns_list.
+        drop_list (list[str]): Список уже не нужных признаков, для удаления из датафрейма.
 
     Returns:
-        pandas.DataFrame :  Копия DataFrame с добавленными итоговыми признаками
+        pd.DataFrame :  DataFrame с добавленными итоговыми признаками
         разницы между средними количествами статусов платежей по различным периодам.
 
     ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
@@ -108,7 +116,10 @@ def enc_paym_norm_group_sum_diff_pipeline(
     logger.info("NEW temporary features")
 
     # Создаём временный датафрейм со столбцом id из df
-    df_buff = pd.DataFrame(data=df["id"], columns=["id"])
+    df_buff = pd.DataFrame(
+        data=df["id"],
+        columns=["id"],
+    )
 
     # Временной промежуток 'all' — все периоды
     time_span = "all"
@@ -208,72 +219,10 @@ enc_paym_avg_0_years_diff
 
 
 @memory_monitor_function
-def mean_value_frequency_feature_pipeline(
-    df: pd.DataFrame,
-    columns_list: List[str],
-    drop_list: List[str] | None = None,
-) -> pd.DataFrame:
-    """
-    Cоздаёт новые агрегированные признаки,
-    отражающий среднюю частоту (относительную встречаемость) значений
-    заданных столбцов columns_list датафрейма для каждого уникального id.
-    Результат добавляется в  датафрейм
-    с нормировкой на количество записей (rn_max) для каждого id.
-    Удаляет уже не нужные колонки.
-
-    Args:
-        df: (pd.DataFrame)  Исходный DataFrame с признаками из columns_list.
-        columns_list: (List[str]) Список столбцов, для которых считаем среднюю частоту значений
-        drop_list(List[str], optional): Список уже не нужных признаков,
-            для удаления из датафрейма
-
-    Returns:
-        pandas.DataFrame :  Копия DataFrame с добавленным новым столбцом {column}_mean_freq,
-        содержащим нормированное агрегированное значение средней
-        частоты значений column для каждого id.
-
-    ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
-    (который ожидает функцию только с одним аргументом — DataFrame).
-     Поэтому при добавлении этой функции в пайплайн её необходимо оборачивать с помощью partial,
-      чтобы зафиксировать дополнительные параметры заранее.
-    """
-
-    logger.info("NEW features")
-
-    for col in columns_list:
-        new_col = f"{col}_mean_freq"
-        logger.info(new_col)
-
-        # Вычисляем относительную частоту каждого уникального значения в столбце
-        bin_freq = df[col].value_counts(normalize=True).to_dict()
-
-        # Создаём Series с частотами значений для каждой строки
-        freq_series = df[col].map(bin_freq)
-        """
-        Делаем группировку столбца по id и считаем сумму частот в группе,
-        делим сумму на количество записей для этого id.
-        Результат сохраняем в новый столбец new_col.
-        """
-        df[new_col] = freq_series.groupby(df["id"]).transform("sum") / df["rn_max"]
-
-        # Удаляем временные переменные для экономии памяти
-        del freq_series, bin_freq
-        gc.collect()
-
-    # Если передан список колонок на удаление
-    if drop_list is not None:
-        # Удаляем уже не нужные колонки
-        df = df.drop(drop_list, axis=1)
-        logger.info(f"DataFrame shape after drop(): {df.shape}")
-
-    return df
-
-
-@memory_monitor_function
 def definite_value_proportion_features_pipeline(
     df: pd.DataFrame,
-    features_dictionary: Dict[str, Any],
-    float_downcast_columns_list: List[str] | None = None,
+    features_dictionary: dict[str, list[int]],
+    float_downcast_columns_list: list[str] | None = None,
 ) -> pd.DataFrame:
     """
     Создаёт и добавляет в датафрейм новые частотные признаки
@@ -286,15 +235,15 @@ def definite_value_proportion_features_pipeline(
     Удаляет уже не нужные колонки.
 
     Args:
-        df : Исходный DataFrame, содержащий необходимые признаки и колонку 'rn_max'.
-        features_dictionary: Dict[str, Any] - Словарь где ключами являются названия колонок,
-            а значениями уникальные значения колонки которые требуется обработать.
-        float_downcast_columns_list (List[str], optional) : Список колонок  тип которых можно
+        df (pd.DataFrame): Исходный DataFrame, содержащий необходимые признаки и колонку 'rn_max'.
+        features_dictionary: dict[str, list[int]] - Словарь где ключами являются названия колонок,
+            а значениями список уникальных значений колонки которые требуется обработать.
+        float_downcast_columns_list (list[str] | None) : Список колонок тип которых можно
             безопасно понизить с float64 до float32 без потери информативности
             из-за округления значений.
 
     Returns:
-        pandas.DataFrame : Копия исходного DataFrame с добавленными частотными признаками.
+        pd.DataFrame : DataFrame с добавленными частотными признаками.
 
     ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
     (который ожидает функцию только с одним аргументом — DataFrame).
@@ -365,10 +314,10 @@ def from_is_zero_prop_1_create_sum_prop_1_feature_pipeline(
     новый признак 'is_zero_sum_prop_1' в DataFrame.
 
     Args:
-        df :  Исходный DataFrame с признаками is_zero_*_prop_1.
+        df (pd.DataFrame):  Исходный DataFrame с признаками is_zero_*_prop_1.
 
     Returns:
-        pandas.DataFrame : Копия DataFrame с добавленным признаком 'is_zero_sum_prop_1'.
+        pd.DataFrame : DataFrame с добавленным признаком 'is_zero_sum_prop_1'.
     """
 
     columns = [
@@ -400,11 +349,10 @@ def pre_since_opened_sum_mean_repeated_pipeline(df: pd.DataFrame) -> pd.DataFram
       нормируя сумму повторов на количество записей 'rn_max' для каждого 'id'.
 
     Args:
-        df :  Исходный DataFrame с признаками  'pre_since_opened', 'id' и 'rn_max'.
+        df (pd.DataFrame):  Исходный DataFrame с признаками  'pre_since_opened', 'id' и 'rn_max'.
 
     Returns:
-        pandas.DataFrame :  Копия DataFrame с
-        добавленным признаком 'pre_since_opened_repeated_prop'.
+        pandas.DataFrame :  DataFrame с добавленным признаком 'pre_since_opened_repeated_prop'.
     """
 
     # Считаем количество каждого значения 'pre_since_opened' для каждого 'id'
@@ -426,7 +374,12 @@ def pre_since_opened_sum_mean_repeated_pipeline(df: pd.DataFrame) -> pd.DataFram
     df["pre_since_opened_repeated_prop"] = df["id"].map(all_sum_repeated)
 
     # Удаляем временные переменные
-    del (counts, repeated_pre_since_opened, sum_repeated, all_sum_repeated)
+    del (
+        counts,
+        repeated_pre_since_opened,
+        sum_repeated,
+        all_sum_repeated,
+    )
     gc.collect()
 
     # Нормируем сумму повторов на количество записей 'rn_max' для каждого 'id'
@@ -443,16 +396,19 @@ def pre_since_opened_sum_mean_repeated_pipeline(df: pd.DataFrame) -> pd.DataFram
 
 
 @memory_monitor_function
-def drop_columns_pipeline(df: pd.DataFrame, columns_list: List[str]) -> pd.DataFrame:
+def drop_columns_pipeline(
+    df: pd.DataFrame,
+    columns_list: list[str],
+) -> pd.DataFrame:
     """
     Удаляет исходные и временные признаки из DataFrame.
 
     Args:
-        df: (pd.DataFrame) Исходный DataFrame.
-        columns_list: List[str] Список удаляемых колонок.
+        df (pd.DataFrame): Исходный DataFrame.
+        columns_list: list[str] Список удаляемых колонок.
 
     Returns:
-        pd.DataFrame : Копия DataFrame без указанных столбцов
+        pd.DataFrame : DataFrame без указанных столбцов
 
     ВАЖНО: функция требует два аргумента на входе, что несовместимо с работой sklearn Pipeline
     (который ожидает функцию только с одним аргументом — DataFrame).
@@ -478,10 +434,10 @@ def drop_duplicates_pipeline(df: pd.DataFrame) -> pd.DataFrame:
     После удаления дубликатов столбец 'id' также удаляется.
 
     Args:
-        df: (pd.DataFrame) Исходный DataFrame.
+        df (pd.DataFrame):  Исходный DataFrame.
 
     Returns:
-        pd.DataFrame : Копия DataFrame без дубликатов по 'id' и столбца 'id'.
+        pd.DataFrame : DataFrame без дубликатов по 'id' и столбца 'id'.
     """
 
     # Выведем размер датафрейма
@@ -503,13 +459,3 @@ def drop_duplicates_pipeline(df: pd.DataFrame) -> pd.DataFrame:
     logger.info(f"DataFrame shape after dropping ID: {df.shape}")
 
     return df
-
-
-# Добавим защитный блок main для тестов
-if __name__ == "__main__":
-    # Настройка логгера только для standalone запуска
-    logging.basicConfig(
-        level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
-
-    pass

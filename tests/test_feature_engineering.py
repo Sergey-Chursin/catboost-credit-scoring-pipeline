@@ -5,7 +5,7 @@ from src.feature_engineering import (
     drop_duplicates_pipeline,
     enc_paym_transcoding_pipeline,
     from_is_zero_prop_1_create_sum_prop_1_feature_pipeline,
-    mean_value_frequency_feature_pipeline,
+    # mean_value_frequency_feature_pipeline,
     pre_since_opened_sum_mean_repeated_pipeline,
     rn_max_feature_pipeline,
 )
@@ -76,18 +76,18 @@ def test_from_is_zero_prop_1_create_sum_prop_1_feature_pipeline():
     assert np.isclose(result["is_zero_sum_prop_1"].iloc[1], 0.4)
 
 
-def test_mean_value_frequency_feature_pipeline():
-    """
-    Проверяет, что считается средняя частота (mean freq) значений колонки по id.
-    """
-    df = pd.DataFrame(
-        {"id": [1, 1, 2, 2], "some_col": [2, 2, 1, 1], "rn_max": [2, 2, 1, 1]}
-    )
-    result = mean_value_frequency_feature_pipeline(df.copy(), columns_list=["some_col"])
-    # Значения "2" у id=1 встречаются всегда → freq=1.0
-    # Значения "1" у id=2 встречаются всегда → freq=1.0
-    assert all(result.query("id == 1")["some_col_mean_freq"] == 0.5)
-    assert all(result.query("id == 2")["some_col_mean_freq"] == 1)
+# def test_mean_value_frequency_feature_pipeline():
+#     """
+#     Проверяет, что считается средняя частота (mean freq) значений колонки по id.
+#     """
+#     df = pd.DataFrame(
+#         {"id": [1, 1, 2, 2], "some_col": [2, 2, 1, 1], "rn_max": [2, 2, 1, 1]}
+#     )
+#     result = mean_value_frequency_feature_pipeline(df.copy(), columns_list=["some_col"])
+#     # Значения "2" у id=1 встречаются всегда → freq=1.0
+#     # Значения "1" у id=2 встречаются всегда → freq=1.0
+#     assert all(result.query("id == 1")["some_col_mean_freq"] == 0.5)
+#     assert all(result.query("id == 2")["some_col_mean_freq"] == 1)
 
 
 def test_pre_since_opened_sum_mean_repeated_pipeline():
