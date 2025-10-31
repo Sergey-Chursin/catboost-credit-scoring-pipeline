@@ -1,9 +1,9 @@
 import logging
-from typing import Any, List
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, roc_auc_score
+from sklearn.pipeline import Pipeline
 
 from src.data_utils import SplitDataset
 
@@ -24,10 +24,9 @@ def evaluate_auc_score(
     Вычисляет и выводит/логирует значение ROC AUC для тестовой выборки.
 
     Args:
-        y_true (ArrayLike): Истинные метки классов (обычно 1D array, pandas.Series или список).
-        y_pred (ArrayLike): Предсказанные вероятности
-            (обычно 1D array, pandas.Series или список вероятностей класса 1).
-        verbose (bool, optional): Если True, печатает AUC в консоль. По умолчанию True.
+        y_true (pd.Series): Истинные метки классов.
+        y_pred (np.ndarray): Предсказанные вероятности.
+        verbose (bool): Если True, печатает AUC в консоль. По умолчанию True.
 
     Returns:
         float: Значение метрики ROC AUC на тестовой выборке.
@@ -56,9 +55,9 @@ def evaluate_accuracy_score(
     Вычисляет и выводит/логирует значение Accuracy для тестовой выборки.
 
     Args:
-        y_true (ArrayLike): Истинные метки классов (обычно 1D array, pandas.Series или список).
-        y_pred (ArrayLike): Предсказанные классы (обычно 1D array, pandas.Series или список меток классов).
-        verbose (bool, optional): Если True, печатает Accuracy в консоль. По умолчанию True.
+        y_true (pd.Series): Истинные метки классов.
+        y_pred (np.ndarray): Предсказанные классы.
+        verbose (bool): Если True, печатает Accuracy в консоль. По умолчанию True.
 
     Returns:
         float: Значение метрики Accuracy на тестовой выборке.
@@ -74,7 +73,7 @@ def evaluate_accuracy_score(
 def pred_and_metrics_compatible(
     y_pred: np.ndarray,
     eval_metric: str,
-    classes_metric_list: List[str],
+    classes_metric_list: list[str],
 ) -> bool:
     """
     Вспомогательная функция для compute_and_log_metrics.
@@ -89,7 +88,7 @@ def pred_and_metrics_compatible(
     Аргументы:
         y_pred (np.ndarray): Массив предсказаний (метки классов или вероятности).
         eval_metric (str): Имя метрики (например, 'acc', 'auc').
-        classes_metric_list (List[str]): Список метрик, требующих метки классов.
+        classes_metric_list (list[str]): Список метрик, требующих метки классов.
 
     Возвращает:
         bool: True, если y_pred совместим с указанной метрикой; False — иначе.
@@ -120,9 +119,9 @@ def pred_and_metrics_compatible(
 
 def compute_and_log_metrics(
     eval_metric: str,
-    pipe: Any,
+    pipe: Pipeline,
     train_test_dict: SplitDataset,
-    classes_metric_list: List[str],
+    classes_metric_list: list[str],
     y_pred: np.ndarray | None = None,
 ) -> float | None:
     """
@@ -130,11 +129,14 @@ def compute_and_log_metrics(
 
     Args:
         eval_metric (str): Краткое имя метрики ('auc', 'acc', 'off').
-        pipe (Any): Обученный пайплайн.
-        train_test_dict (dict): Словарь с тестовыми данными, должен содержать ключи
-            'X_test' (pd.DataFrame) и 'y_test' (pd.Series или 1D np.array).
-        classes_metric_list (List[str]): Список метрик, требующих метки классов.
-        y_pred (np.ndarray, optional): заранее полученный предикт,
+        pipe (Pipeline): Обученный пайплайн.
+        train_test_dict (SplitDataset): Словарь, содержащий разделенные наборы данных.
+            - X_train (pd.DataFrame): Признаки для обучающей выборки.
+            - y_train (pd.Series): Целевая переменная для обучающей выборки.
+            - X_test (pd.DataFrame): Признаки для тестовой выборки.
+            - y_test (pd.Series): Целевая переменная для тестовой выборки.
+        classes_metric_list (list[str]): Список метрик, требующих метки классов.
+        y_pred (np.ndarray | None): заранее полученный предикт,
              используется если совместим с eval_metric.
 
     Returns:
@@ -179,14 +181,23 @@ def compute_and_log_metrics(
         if eval_metric in classes_metric_list:
             logger.info(f"Calculating {eval_metric.upper()}: performing predict")
             # Делаем предикт
-            y_pred = pipe.predict(X_test)
+            predictions = pipe.predict(X_test)
+
+            # Мы ожидаем получить только массив. Если пришло что-то другое,
+            # это неожиданное поведение, и мы должны немедленно упасть с ошибкой.
+            if not isinstance(predictions, np.ndarray):
+                raise TypeError(
+                    f"Expected pipe.predict() to return np.ndarray, "
+                    f"but got {type(predictions).__name__}. "
+                    f"The logic for handling tuples is not implemented."
+                )
             # verbose=False для отключения print() в функциях модуля evaluate_metrics
-            result = func(y_test, y_pred, verbose=False)
+            result = func(y_test, predictions, verbose=False)
         else:
             # В остальных случаях делаем predict_proba
             logger.info(f"Calculating {eval_metric.upper()}: performing predict_proba")
-            y_pred = pipe.predict_proba(X_test)[:, 1]
+            predictions = pipe.predict_proba(X_test)[:, 1]
             # verbose=False для отключения print() в функциях модуля evaluate_metrics
-            result = func(y_test, y_pred, verbose=False)
+            result = func(y_test, predictions, verbose=False)
 
     return result
