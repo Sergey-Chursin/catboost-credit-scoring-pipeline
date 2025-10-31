@@ -167,7 +167,7 @@ async def predict(request: PredictionRequest):
     # возвращаемые пайплайном.
     # df["id"].unique() - обрабатывает случаи с несколькими записями для одного клиента
     resp = [
-        {"client_id": int(id), "probability": float(prob), "class": int(label)}
+        {"client_id": int(unique_id), "probability": float(prob), "class": int(label)}
         for unique_id, prob, label in zip(df["id"].unique(), proba, pred, strict=True)
     ]
     # Создаём экземпляр схемы-ответа, автоматически сериализуем в JSON

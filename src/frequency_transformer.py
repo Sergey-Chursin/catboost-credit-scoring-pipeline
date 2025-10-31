@@ -1,6 +1,6 @@
 import gc
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -35,7 +35,7 @@ class MeanValueFrequencyTransformer(BaseEstimator, TransformerMixin):
         norma: str,
         col_suffix: str = "_mean_freq",
         columns: Optional[List[str]] = None,
-        drop_list: List[str] = None,
+        drop_list: List[str] | None = None,
         logger: Optional[logging.Logger] = None,
     ):
         self.norma = norma
@@ -43,8 +43,8 @@ class MeanValueFrequencyTransformer(BaseEstimator, TransformerMixin):
         self.columns = columns
         self.drop_list = drop_list
         self.logger = logger
-        self.freq_maps = {}
-        self.mean_freqs = {}
+        self.freq_maps: dict[str, Any] = {}
+        self.mean_freqs: dict[str, Any] = {}
 
     def fit(self, X, y=None):
         # if self.logger is not None:

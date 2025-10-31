@@ -3,7 +3,7 @@ import gc
 import glob
 import logging
 import os
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, cast
 
 import numpy as np
 import pandas as pd
@@ -18,8 +18,21 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 
+class SplitDataset(TypedDict):
+    """
+    Определяет типы для словаря, возвращаемого функцией split_dataset_by_target
+    и везде где будет использоваться её выход train_test_dict.
+    """
+
+    X_train: pd.DataFrame
+    y_train: pd.Series
+    X_test: pd.DataFrame
+    y_test: pd.Series
+
+
 def cast_columns_by_map(
-    df: pd.DataFrame, cast_type_map: Dict[str, str] = None
+    df: pd.DataFrame,
+    cast_type_map: Dict[str, str] | None = None,
 ) -> pd.DataFrame:
     """
     Меняет типы DataFrame-колонок в соответствии с заданным словарём.
@@ -44,7 +57,8 @@ def cast_columns_by_map(
     for col, dtype in cast_type_map.items():
         if col in df.columns:
             try:
-                df[col] = df[col].astype(dtype)
+                df[col] = df[col].astype(cast(Any, dtype))
+                #  cast(Any, dtype) - явно указывает mypy что мы уверены в типе к которому приводим колонку
             except Exception as e:
                 logger.warning(f"Could not cast column '{col}' to {dtype}: {e}")
     return df
@@ -92,7 +106,7 @@ def load_data_chunks(
     logger.info("Starting load_data_chunks function")
 
     # Список для накопления прочитанных DataFrame
-    res = []
+    res: list[pd.DataFrame] = []
 
     # Собираем отсортированный список файлов с нужным расширением из папки:
     #  Если mask не задан (пустая строка), берём все файлы, заканчивающиеся на search_file_ext (например, '.parquet').
@@ -112,10 +126,6 @@ def load_data_chunks(
     start_from = max(0, start_from)
     chunks = dataset_paths[start_from : start_from + num_parts_to_read]
 
-    logger.info("Reading chunks:")
-    for chunk in chunks:
-        logger.info(chunk)
-
     # Выбираем функцию пандас для закачки файлов согласно переданному расширению
     ext_to_reader = {
         ".pq": lambda path, cols: pd.read_parquet(path, columns=cols),
@@ -133,8 +143,8 @@ def load_data_chunks(
         mininterval=5,  # обновление прогресса раз в 5 секунд
     ):
         logger.info(f"Reading chunk: {chunk_path}")
-        chunk = reader(path=chunk_path, cols=columns)
-        res.append(chunk)
+        df_chunk = reader(path=chunk_path, cols=columns)
+        res.append(df_chunk)
 
     # Объединяем все прочитанные DataFrame в один
     result = pd.concat(res).reset_index(drop=True)
@@ -157,7 +167,7 @@ def load_dataset(
     cast_type_map: Optional[dict] = None,
     mask: Optional[str] = None,
     search_file_ext: str = ".pq",
-) -> pd.DataFrame:
+) -> pd.DataFrame | None:
     """
     Обёртка для функции load_data_chunks.
     Загружает и подготавливает полный датасет из партиций Parquet,
@@ -236,7 +246,10 @@ def load_dataset(
         del transactions_frame
         gc.collect()
 
-    logger.info(f"Finished load_dataset (total rows: {len(result)})")
+        if result is not None:
+            logger.info(f"Finished load_dataset (total rows: {len(result)})")
+        else:
+            logger.warning("load_dataset did not load any data and returns None.")
 
     return result
 
@@ -247,7 +260,7 @@ def split_dataset_by_target(
     train_size: float,
     random_state: int,
     stratify_col: str,
-) -> Dict[str, pd.DataFrame]:
+) -> SplitDataset:
     """
     Разделяет датасет на train/test на основе разделения
      стратифицированного разделения target.
@@ -413,7 +426,7 @@ def check_data_folder_and_count_files(
 
 def save_predictions_with_id(
     output_type: str,
-    ids: Union[np.ndarray, pd.Series, list],
+    ids: pd.Series,
     predictions: np.ndarray,
     output_path: str,
 ):
@@ -426,7 +439,7 @@ def save_predictions_with_id(
 
     Args:
         output_type (str): 'proba' или 'predict'
-        ids (array/Series/list): значения id для всех объектов
+        ids (Series): значения id для всех объектов
         predictions (np.ndarray): массив предиктов (classes или вероятности)
         output_path (str): итоговый путь к файлу .csv
     """

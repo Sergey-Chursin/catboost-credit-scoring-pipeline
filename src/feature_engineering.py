@@ -209,7 +209,9 @@ enc_paym_avg_0_years_diff
 
 @memory_monitor_function
 def mean_value_frequency_feature_pipeline(
-    df: pd.DataFrame, columns_list: List[str], drop_list: List[str] = None
+    df: pd.DataFrame,
+    columns_list: List[str],
+    drop_list: List[str] | None = None,
 ) -> pd.DataFrame:
     """
     Cоздаёт новые агрегированные признаки,
@@ -271,7 +273,7 @@ def mean_value_frequency_feature_pipeline(
 def definite_value_proportion_features_pipeline(
     df: pd.DataFrame,
     features_dictionary: Dict[str, Any],
-    float_downcast_columns_list: List[str] = None,
+    float_downcast_columns_list: List[str] | None = None,
 ) -> pd.DataFrame:
     """
     Создаёт и добавляет в датафрейм новые частотные признаки

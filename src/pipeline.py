@@ -285,7 +285,7 @@ def main_pipeline(
     prop_features_dict: Dict[str, Any],
     float_downcast_columns_list: List[str],
     drop_list: List[str],
-    cast_type_map: Dict[str, str],
+    cast_type_map: dict[str, str] | None,
     logger: Optional[logging.Logger] = None,
 ):
     """
@@ -485,7 +485,7 @@ def run_train_coordinator(
     float_downcast_columns_list: List[str],
     drop_list: List[str],
     classes_metric_list: List[str],
-    cast_type_map: Optional[dict],
+    cast_type_map: dict[str, str] | None,
     search_file_ext: str,
     logger: Optional[logging.Logger] = None,
     mask: Optional[str] = None,
@@ -579,6 +579,9 @@ def run_train_coordinator(
         mask=mask,
         search_file_ext=search_file_ext,
     )
+
+    if raw_data is None:
+        raise ValueError("Dataset could not be loaded.")
 
     if logger is not None:
         logger.info("Splitting dataset into train and test sets")
@@ -748,6 +751,8 @@ def run_test_coordinator(
         mask=mask,
         search_file_ext=search_file_ext,
     )
+    if raw_data is None:
+        raise ValueError("Dataset could not be loaded.")
 
     if logger is not None:
         logger.info("Splitting dataset into train and test sets")
@@ -772,6 +777,11 @@ def run_test_coordinator(
     output_handlers = {"proba": pipe.predict_proba, "predict": pipe.predict}
     # Получаем значение из парсера и вызываем соответствующий метод предикта
     handler = output_handlers.get(output)
+
+    if handler is None:
+        # Эта ветка никогда не должна выполниться из-за choices в argparse,
+        # но для безопасности добавим проверку
+        raise ValueError(f"Unknown mode: {args.mode}")
 
     if logger is not None:
         logger.info(
@@ -812,7 +822,7 @@ def run_test_coordinator(
         )
     # Получаем id set для сохранения с предиктом
     # Используем drop_duplicates так как X_test это датасет до агрегаций в пайплайне
-    ids = train_test_dict["X_test"]["id"].drop_duplicates().values
+    ids = train_test_dict["X_test"]["id"].drop_duplicates()
 
     # Сохраненяем предикты в.csv
     save_predictions_with_id(
@@ -925,11 +935,19 @@ def run_inference_coordinator(
         mask=mask,
         search_file_ext=search_file_ext,
     )
+    if data is None:
+        raise ValueError("Dataset could not be loaded.")
+
     # Используем dispatch mapping для выбора жесткой или мягкой классификации
     # Создадим словарь режимов вывода
     output_handlers = {"proba": pipe.predict_proba, "predict": pipe.predict}
     # Получаем значение из парсера и вызываем соответствующий метод предикта
     handler = output_handlers.get(output)
+
+    if handler is None:
+        # Эта ветка никогда не должна выполниться из-за choices в argparse,
+        # но для безопасности добавим проверку
+        raise ValueError(f"Unknown mode: {args.mode}")
 
     if logger is not None:
         logger.info(
@@ -947,7 +965,7 @@ def run_inference_coordinator(
 
     # Получаем id set для сохранения с предиктом
     # Используем drop_duplicates так как X_test это датасет до агрегаций в пайплайне
-    ids = data["id"].drop_duplicates().values
+    ids = data["id"].drop_duplicates()
 
     # Создаём имя файла предикта
     predict_file_name = make_file_path(
@@ -1075,6 +1093,8 @@ def run_transform_split_coordinator(
         mask=mask,
         search_file_ext=search_file_ext,
     )
+    if raw_data is None:
+        raise ValueError("Dataset could not be loaded.")
 
     if logger is not None:
         logger.info("Splitting dataset into train and test sets")
@@ -1370,6 +1390,11 @@ if __name__ == "__main__":
     # Получим значение из парсера и
     # запустим соответствующий режим пайплайна
     handler = mode_handlers.get(args.mode)
+
+    if handler is None:
+        # Эта ветка никогда не должна выполниться из-за choices в argparse,
+        # но для безопасности добавим проверку
+        raise ValueError(f"Unknown mode: {args.mode}")
     handler()
 
     if logger is not None:

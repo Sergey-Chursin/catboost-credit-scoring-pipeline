@@ -135,7 +135,7 @@ PRE_FEATURES = [
 (cast_columns_by_map_pipeline функция) и 
 при скачивании данных в функции load_dataset
 """
-CAST_TYPE_MAP = {
+CAST_TYPE_MAP: dict[str, str] = {
     "id": "int32",
     "rn": "int8",
     "pre_since_opened": "int8",
@@ -391,7 +391,7 @@ N_SPLITS = 5
 # Стратификация разделения фолдов в CatBoostEnsembleClassifier
 SHUFFLE = True
 # Список категориальных фичей в CatBoostEnsembleClassifier
-CAT_FEATURES = []
+CAT_FEATURES: list[str] = []
 
 """
 Список словарей гиперпараметров моделей ансамбля

@@ -1,5 +1,5 @@
 import logging
-from typing import Dict
+from typing import Any, Dict, cast
 
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -61,7 +61,8 @@ def convert_all_to_numeric_preprocessing(df: pd.DataFrame) -> pd.DataFrame:
     """
 
     # errors='coerce' при невозможности преобразования заменит на NaN.
-    df = df.apply(lambda col: pd.to_numeric(col, errors="coerce"))
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
 
     return df
 
@@ -88,7 +89,9 @@ def cast_columns_by_map_preprocessing(
         )
     for col, dtype in cast_type_map.items():
         if col in df.columns:
-            df[col] = df[col].astype(dtype, copy=False)
+            df[col] = df[col].astype(cast(Any, dtype), copy=False)
+    #  cast(Any, dtype) - явно указывает mypy что мы уверены в типе к которому приводим колонку
+
 
     return df
 

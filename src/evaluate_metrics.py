@@ -1,20 +1,11 @@
-import glob
 import logging
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, List
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, roc_auc_score
 
-from src.config import (
-    CLASSES_TEST_PREDICT_PATTERN,
-    PROBA_TEST_PREDICT_PATTERN,
-    SEED_SPLIT_DATASET,
-    STRATIFY_COL,
-    TARGET_PATH,
-    TRAIN_SIZE,
-)
-from src.data_utils import split_target_only
+from src.data_utils import SplitDataset
 
 """
 Создаём локальный логгер для этого модуля
@@ -25,58 +16,65 @@ logger = logging.getLogger(__name__)
 
 
 def evaluate_auc_score(
-    y_true: Sequence, y_score: Sequence, verbose: bool = True
+    y_true: pd.Series,
+    y_pred: np.ndarray,
+    verbose: bool = True,
 ) -> float:
     """
     Вычисляет и выводит/логирует значение ROC AUC для тестовой выборки.
 
     Args:
-        y_true (Sequence): Истинные метки классов (обычно 1D array, pandas.Series или список).
-        y_score (Sequence): Предсказанные вероятности
+        y_true (ArrayLike): Истинные метки классов (обычно 1D array, pandas.Series или список).
+        y_pred (ArrayLike): Предсказанные вероятности
             (обычно 1D array, pandas.Series или список вероятностей класса 1).
         verbose (bool, optional): Если True, печатает AUC в консоль. По умолчанию True.
 
     Returns:
         float: Значение метрики ROC AUC на тестовой выборке.
     """
+
     # Если подали двумерный массив (n_samples, 2) — берём вероятности для класса 1
-    y_score = np.asarray(y_score)
-    if y_score.ndim == 2 and y_score.shape[1] == 2:
-        y_score = y_score[:, 1]
+    if y_pred.ndim == 2 and y_pred.shape[1] == 2:
+        y_pred = y_pred[:, 1]
 
     # Считаем метрику
-    auc = roc_auc_score(y_true, y_score)
+    auc = roc_auc_score(y_true, y_pred)
 
     # Выводим значение метрики
     logger.info(f"AUC on test set: {auc:.4f}")
     if verbose:
         print(f"AUC on test set: {auc:.4f}")
-    return auc
+    return float(auc)
 
 
 def evaluate_accuracy_score(
-    y_true: Sequence, y_pred: Sequence, verbose: bool = True
+    y_true: pd.Series,
+    y_pred: np.ndarray,
+    verbose: bool = True,
 ) -> float:
     """
     Вычисляет и выводит/логирует значение Accuracy для тестовой выборки.
 
     Args:
-        y_true (Sequence): Истинные метки классов (обычно 1D array, pandas.Series или список).
-        y_pred (Sequence): Предсказанные классы (обычно 1D array, pandas.Series или список меток классов).
+        y_true (ArrayLike): Истинные метки классов (обычно 1D array, pandas.Series или список).
+        y_pred (ArrayLike): Предсказанные классы (обычно 1D array, pandas.Series или список меток классов).
         verbose (bool, optional): Если True, печатает Accuracy в консоль. По умолчанию True.
 
     Returns:
         float: Значение метрики Accuracy на тестовой выборке.
     """
+
     acc = accuracy_score(y_true, y_pred)
     logger.info(f"Accuracy on test set: {acc:.4f}")
     if verbose:
         print(f"Accuracy on test set: {acc:.4f}")
-    return acc
+    return float(acc)
 
 
 def pred_and_metrics_compatible(
-    y_pred: np.ndarray, eval_metric: str, classes_metric_list: List[str]
+    y_pred: np.ndarray,
+    eval_metric: str,
+    classes_metric_list: List[str],
 ) -> bool:
     """
     Вспомогательная функция для compute_and_log_metrics.
@@ -123,10 +121,10 @@ def pred_and_metrics_compatible(
 def compute_and_log_metrics(
     eval_metric: str,
     pipe: Any,
-    train_test_dict: Dict[str, pd.DataFrame],
+    train_test_dict: SplitDataset,
     classes_metric_list: List[str],
-    y_pred: Optional[np.ndarray] = None,
-) -> Optional[float]:
+    y_pred: np.ndarray | None = None,
+) -> float | None:
     """
     Вычисляет и логирует выбранную метрику качества (AUC или Accuracy) на тестовой выборке.
 
@@ -140,12 +138,15 @@ def compute_and_log_metrics(
              используется если совместим с eval_metric.
 
     Returns:
-        Optional[float]: Значение метрики (ROC AUC или Accuracy) на тестовой выборке,
+        float | None: Значение метрики (ROC AUC или Accuracy) на тестовой выборке,
             либо None, если выбран режим 'off' или флаг не введён.
     """
     logger.info("FUNCTION compute_and_log_metrics")
     # Словарь для маппинг диспетчеризации
-    eval_metrics_map = {"auc": evaluate_auc_score, "acc": evaluate_accuracy_score}
+    eval_metrics_map = {
+        "auc": evaluate_auc_score,
+        "acc": evaluate_accuracy_score,
+    }
     # Выбираем функцию из словаря по аргументу eval_metric
     func = eval_metrics_map.get(eval_metric)
 
@@ -161,10 +162,16 @@ def compute_and_log_metrics(
     # Проверка размерности предикта есть в функциях модуля evaluate_metrics
     # verbose=False для отключения print() в функциях модуля evaluate_metrics
     if y_pred is not None and pred_and_metrics_compatible(
-        y_pred, eval_metric, classes_metric_list
+        y_pred,
+        eval_metric,
+        classes_metric_list,
     ):
         logger.info(f"Using provided y_pred for metric '{eval_metric}'")
-        result = func(y_test, y_pred, verbose=False)
+        result = func(
+            y_test,
+            y_pred,
+            verbose=False,
+        )
 
     else:
         # Иначе делаем свежий инференс подходящего типа через pipeline
@@ -183,86 +190,3 @@ def compute_and_log_metrics(
             result = func(y_test, y_pred, verbose=False)
 
     return result
-
-
-if __name__ == "__main__":
-    """
-    В блоке main можно посчитать метрики ROC AUC и Accuracy
-    на предиктах тестового датасета.
-    Из папки predictions автоматически выберутся файлы 
-    типа predict__raw__2025-08-05-17-37.csv / proba__raw__2025-08-05-17-28.csv,
-    созданые последними.
-    """
-    # Включаем вывод print()
-    verbose = True
-
-    # Получаем словарь с разделенным на train/test таргетом
-    y_dict = split_target_only(
-        path_to_target=TARGET_PATH,
-        train_size=TRAIN_SIZE,
-        random_state=SEED_SPLIT_DATASET,
-        stratify_col=STRATIFY_COL,
-        verbose=True,
-    )
-
-    # Определяем истинные метки классов
-    y_true = y_dict["y_test"]
-
-    # Находим по маске файл с предиктами вероятностей на тестовом наборе,
-    # если файл еще не создан появится предупреждение
-    proba_files = glob.glob(PROBA_TEST_PREDICT_PATTERN)
-    if not proba_files:
-        raise FileNotFoundError(
-            f"No proba prediction files found for mask: {PROBA_TEST_PREDICT_PATTERN}"
-        )
-    # Выбираем первый файл
-    proba_test_predict = proba_files[0]
-
-    # Загружаем предикты вероятностей классов
-    proba_df = pd.read_csv(proba_test_predict)
-    probabilities = proba_df["proba_class_1"].values
-
-    if verbose:
-        print(
-            f"Loaded predicted probabilities from {proba_test_predict}\n"
-            f" shape: {probabilities.shape}"
-        )
-
-    # Находим по маске файл с предиктами вероятностей на тестовом наборе,
-    # если файл еще не создан появится предупреждение
-    classes_files = glob.glob(CLASSES_TEST_PREDICT_PATTERN)
-    if not classes_files:
-        raise FileNotFoundError(
-            f"No proba prediction files found for mask: {CLASSES_TEST_PREDICT_PATTERN}"
-        )
-    # Выбираем первый файл
-    classes_test_predict = classes_files[0]
-
-    # Загружаем предикты классов
-    classes_df = pd.read_csv(classes_test_predict)
-    classes = classes_df["prediction"].values
-
-    if verbose:
-        print(
-            f"Loaded predicted classes from {classes_test_predict}\n"
-            f" shape: {classes.shape}"
-        )
-    # Проверяем совпадение длинн предикта и таргета -
-    # выбрасываем предупреждение если нет.
-    assert len(y_true) == len(classes), "Длины y_true и classes не совпадают!"
-
-    # Проверяем совпадение длинн предикта и таргета -
-    # выбрасываем предупреждение если нет.
-    assert len(y_true) == len(probabilities), "Длины y_true и y_score не совпадают!"
-
-    # Вызываем функцию оценки AUC
-    evaluate_auc_score(
-        y_true,
-        probabilities,
-    )
-
-    # Вызываем функцию оценки accuracy
-    evaluate_accuracy_score(
-        y_true,
-        classes,
-    )
