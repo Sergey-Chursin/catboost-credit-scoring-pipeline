@@ -1,5 +1,4 @@
 import logging
-from typing import Dict, List, Optional
 
 import numpy as np
 from catboost import CatBoostClassifier, Pool
@@ -7,7 +6,10 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import StratifiedKFold
 
 
-class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
+class CatBoostEnsembleClassifier(
+    BaseEstimator,
+    ClassifierMixin,
+):
     """
     Бинарный ансамблевый классификатор на основе CatBoost, обучающий N моделей
     на разных разбиениях данных и финальную модель на полном наборе данных.
@@ -40,32 +42,32 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
     def __init__(
         self,
-        params_list: List[Dict],
-        weights_list: List[float],
+        params_list: list[dict],
+        weights_list: list[float],
         threshold: float = 0.5,
-        cat_features: Optional[List[str]] = None,
+        cat_features: list[str] | None = None,
         n_splits: int = 5,
         seed: int = 0,
         shuffle: bool = True,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ):
         """
         Args:
-            params_list (List[Dict]): Список словарей с гиперпараметрами для каждой модели ансамбля
-                (N фолдов + 1 финальная модель). REQUIRED.
-            weights_list (List[float]): Список весов для взвешивания предиктов
-                (один на каждую модель в ансамбле). REQUIRED.
-            threshold (float, optional): Порог отсечения для жёсткой классификации (predict).
+            params_list (list[dict]): Список словарей с гиперпараметрами для каждой модели ансамбля
+                (N фолдов + 1 финальная модель).
+            weights_list (list[float]): Список весов для взвешивания предиктов
+                (один на каждую модель в ансамбле).
+            threshold (float): Порог отсечения для жёсткой классификации (predict).
                 По умолчанию 0.5.
-            cat_features (List[str], optional): Список названий категориальных фичей.
+            cat_features (list[str] | None): Список названий категориальных фичей.
                 Если не передан, используется пустой список.
-            n_splits (int, optional): Количество фолдов для разбиения данных (StratifiedKFold).
+            n_splits (int): Количество фолдов для разбиения данных (StratifiedKFold).
                 По умолчанию 5.
-            seed (int, optional): Seed для воспроизводимости разбиения и моделей.
+            seed (int): Seed для воспроизводимости разбиения и моделей.
                  По умолчанию 0.
-            shuffle (bool, optional): Флаг перемешивания данных при разбиении на фолды.
+            shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
                 По умолчанию True.
-            logger (logging.Logger, optional): Объект логгера для сообщений внутренней работы классификатора.
+            logger (logging.Logger | None): Объект логгера для сообщений внутренней работы классификатора.
                 По умолчанию None (без логирования).
         """
         self.params_list = params_list
@@ -95,7 +97,9 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
 
         self.models_ = []
         kf = StratifiedKFold(
-            n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.seed
+            n_splits=self.n_splits,
+            shuffle=self.shuffle,
+            random_state=self.seed,
         )
 
         # Обучаем N моделей на разных фолдах
@@ -110,9 +114,15 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
             y_val = y.iloc[val_idx]
 
             train_pool = Pool(
-                data=X_train, label=y_train, cat_features=self.cat_features
+                data=X_train,
+                label=y_train,
+                cat_features=self.cat_features,
             )
-            val_pool = Pool(data=X_val, label=y_val, cat_features=self.cat_features)
+            val_pool = Pool(
+                data=X_val,
+                label=y_val,
+                cat_features=self.cat_features,
+            )
             """
             Для обучения используются валидационные подвыборки, 
             для остановки обучения вместо ГП early_stopping_rounds
@@ -125,13 +135,20 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
                 self.logger.info("Params for fold %s", params)
 
             model = CatBoostClassifier(**params)
-            model.fit(train_pool, eval_set=val_pool)
+            model.fit(
+                train_pool,
+                eval_set=val_pool,
+            )
             self.models_.append(model)
 
         # Обучаем финальную модель на полном наборе данных
         if self.logger is not None:
             self.logger.info("Fit final model")
-        train_pool = Pool(data=X, label=y, cat_features=self.cat_features)
+        train_pool = Pool(
+            data=X,
+            label=y,
+            cat_features=self.cat_features,
+        )
         params = self.params_list[self.n_splits]
         # Выводим гиперпараметры в лог
         if self.logger is not None:
@@ -142,7 +159,11 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
         self.models_.append(model)
         return self
 
-    def fit_transform(self, X, y=None):
+    def fit_transform(
+        self,
+        X,
+        y=None,
+    ):
         if self.logger is not None:
             self.logger.info("CLASSIFIER fit_transform")
         # Обучаем классификатор
@@ -172,7 +193,11 @@ class CatBoostEnsembleClassifier(BaseEstimator, ClassifierMixin):
             self.logger.info("CLASSIFIER predict_proba")
 
         preds = []
-        for model, weight in zip(self.models_, self.weights_list, strict=True):
+        for model, weight in zip(
+            self.models_,
+            self.weights_list,
+            strict=True,
+        ):
             pred = model.predict_proba(X)[:, 1]
             preds.append(pred * weight)
         mean_pred = np.sum(preds, axis=0) / np.sum(self.weights_list)
