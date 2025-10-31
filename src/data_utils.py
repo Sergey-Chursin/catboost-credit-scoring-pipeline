@@ -3,7 +3,7 @@ import gc
 import glob
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple, TypedDict, cast
+from typing import Any, TypedDict, cast
 
 import numpy as np
 import pandas as pd
@@ -32,7 +32,7 @@ class SplitDataset(TypedDict):
 
 def cast_columns_by_map(
     df: pd.DataFrame,
-    cast_type_map: Dict[str, str] | None = None,
+    cast_type_map: dict[str, str] | None = None,
 ) -> pd.DataFrame:
     """
     Меняет типы DataFrame-колонок в соответствии с заданным словарём.
@@ -45,7 +45,7 @@ def cast_columns_by_map(
 
     Args:
         df (pd.DataFrame): Исходный DataFrame.
-        cast_type_map (dict, optional): Словарь соответствий {имя_колонки(str): тип_данных(str)}.
+        cast_type_map (dict[str, str] | None): Словарь соответствий {имя_колонки(str): тип_данных(str)}.
 
     Returns:
         pd.DataFrame: DataFrame с приведёнными типами указанных колонок.
@@ -75,9 +75,9 @@ def load_data_chunks(
     start_from: int = 0,
     num_parts_to_read: int = 1,
     verbose: bool = False,
-    columns: Optional[List[str]] = None,
-    cast_type_map: Optional[dict] = None,
-    mask: Optional[str] = None,
+    columns: list[str] | None = None,
+    cast_type_map: dict | None = None,
+    mask: str | None = None,
     search_file_ext: str = ".pq",
 ) -> pd.DataFrame:
     """
@@ -86,18 +86,18 @@ def load_data_chunks(
 
     Args:
         path_to_dataset (str): Путь до директории с parquet-файлами.
-        start_from (int, optional): Номер партиции, с которой начать чтение (по умолчанию 0).
-        num_parts_to_read (int, optional): Количество партиций, которые требуется прочитать
+        start_from (int): Номер партиции, с которой начать чтение (по умолчанию 0).
+        num_parts_to_read (int): Количество партиций, которые требуется прочитать
             (по умолчанию 1).
-        verbose (bool, optional): Если True, выводит выводит бары загрузки  файлов.
-        columns (Optional[List[str]], optional): Список колонок, которые нужно прочитать из партиций
+        verbose (bool): Если True, выводит выводит бары загрузки  файлов.
+        columns (list[str] | None): Список колонок, которые нужно прочитать из партиций
             (по умолчанию все).
-        cast_type_map (Optional[dict], optional): Словарь {имя_колонки: тип}, где тип — строка для приведения типа
+        cast_type_map (dict | None): Словарь {имя_колонки: тип}, где тип — строка для приведения типа
             (например, 'int8', 'float32', 'category'). Если None, типы не приводятся.
-        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+        mask (str | None): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
-        search_file_ext (str, optional): Расширение файлов для поиска: ".csv", ".pq", ".parquet").
+        search_file_ext (str): Расширение файлов для поиска: ".csv", ".pq", ".parquet").
             По умолчанию ".pq".
 
     Returns:
@@ -160,12 +160,12 @@ def load_data_chunks(
 def load_dataset(
     path_to_dataset: str,
     num_parts_total: int,
-    save_to_path: Optional[str] = None,
+    save_to_path: str | None = None,
     num_parts_to_preprocess_at_once: int = 1,
     verbose: bool = False,
-    columns: Optional[List[str]] = None,
-    cast_type_map: Optional[dict] = None,
-    mask: Optional[str] = None,
+    columns: list[str] | None = None,
+    cast_type_map: dict[str, str] | None = None,
+    mask: str | None = None,
     search_file_ext: str = ".pq",
 ) -> pd.DataFrame | None:
     """
@@ -175,26 +175,26 @@ def load_dataset(
      опционально сохраняет чанки и возвращает объединённый DataFrame.
 
     Args:
-        path_to_dataset : путь до датасета с партициями
-        num_parts_total : общее количество партиций, которые нужно обработать
-        save_to_path : путь до папки для сохранения обработанных блоков в .parquet-формате;
+        path_to_dataset (str): путь до датасета с партициями
+        num_parts_total (int): общее количество партиций, которые нужно обработать
+        save_to_path (str | None): путь до папки для сохранения обработанных блоков в .parquet-формате;
             если None, сохранение не происходит
-        num_parts_to_preprocess_at_once : количество партиций,
+        num_parts_to_preprocess_at_once (int): количество партиций,
             которые будут одновременно держаться и обрабатываться в памяти
-        verbose : логировать каждую обрабатываемую часть данных
-        columns : список колонок, которые нужно оставить
+        verbose (bool): логировать каждую обрабатываемую часть данных
+        columns (list[str] | None): список колонок, которые нужно оставить
             по умолчанию останутся все колонки
-        cast_type_map : Словарь {имя_колонки: тип},
+        cast_type_map (dict[str, str] | None): Словарь {имя_колонки: тип},
             где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
             Если None, типы не приводятся.
-        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+        mask (str | None): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
-        search_file_ext (str, optional): Расширение файлов для поиска (например, ".csv", ".pq").
+        search_file_ext (str): Расширение файлов для поиска (например, ".csv", ".pq").
             По умолчанию ".pq".
 
     Returns:
-        pd.DataFrame : датафрейм с объединёнными данными
+        pd.DataFrame | None : датафрейм с объединёнными данными либо None если файлы не найдены
     """
     logger.info("Starting load_dataset function")
 
@@ -267,13 +267,17 @@ def split_dataset_by_target(
 
     Args:
         dataset (pd.DataFrame): Входной датафрейм с признаками, без целевой переменной.
-        path_to_target (str, optional): Путь к CSV-файлу с целевой переменной.
-        train_size (float, optional): Доля обучающей выборки (от 0 до 1).
-        random_state (int, optional): Значение random seed для воспроизводимости сплита.
-        stratify_col (str, optional): Название колонки целевой переменной  для стратификации.
+        path_to_target (str): Путь к CSV-файлу с целевой переменной.
+        train_size (float): Доля обучающей выборки (от 0 до 1).
+        random_state (int): Значение random seed для воспроизводимости сплита.
+        stratify_col (str): Название колонки целевой переменной  для стратификации.
 
     Returns:
-        Dict с 'X_train', 'y_train', 'X_test', 'y_test'
+        SplitDataset: Словарь, содержащий разделенные наборы данных.
+            - X_train (pd.DataFrame): Признаки для обучающей выборки.
+            - y_train (pd.Series): Целевая переменная для обучающей выборки.
+            - X_test (pd.DataFrame): Признаки для тестовой выборки.
+            - y_test (pd.Series): Целевая переменная для тестовой выборки.
     """
     logger.info("Starting split_dataset_by_target")
 
@@ -320,47 +324,22 @@ def split_dataset_by_target(
         f" y_test {y_test.shape}"
     )
 
-    return {"X_train": X_train, "y_train": y_train, "X_test": X_test, "y_test": y_test}
+    return {
+        "X_train": X_train,
+        "y_train": y_train,
+        "X_test": X_test,
+        "y_test": y_test,
+    }
 
 
-def split_target_only(
-    path_to_target: str,
-    train_size: float,
-    random_state: int,
-    stratify_col: str,
-    verbose: bool = False,
-):
+def make_file_path(
+    output_type: str,
+    data_path: str,
+    output_dir: str,
+    ext: str,
+) -> str:
     """
-    Разделяет только таргет на train/test подвыборки.
-
-    Args:
-        path_to_target (str, optional): Путь к CSV-файлу с целевой переменной.
-        train_size (float, optional): Доля train-выборки (от 0 до 1).
-        random_state (int, optional): Значение random seed для воспроизводимости разбиения.
-        stratify_col (str, optional): Название колонки для стратификации при сплите.
-        verbose (bool, optional): Если True, выводит сообщения (print) о прогрессе в консоль.
-            По умолчанию True.
-    Returns:
-        dict с pandas.Series: {'y_train', 'y_test'}
-    """
-    target = pd.read_csv(path_to_target)
-    if verbose:
-        print(f"Loaded target from {path_to_target} (shape: {target.shape}")
-
-    y_train, y_test = train_test_split(
-        target,
-        train_size=train_size,
-        random_state=random_state,
-        stratify=target[stratify_col],
-    )
-    if verbose:
-        print(f"y_train shape: {y_train.shape}\ny_test shape: {y_test.shape}")
-    return {"y_train": y_train[stratify_col], "y_test": y_test[stratify_col]}
-
-
-def make_file_path(output_type: str, data_path: str, output_dir: str, ext: str) -> str:
-    """
-    Формирует путь для сохранения файла предсказаний с уникальным именем, включающим тип вывода,
+    Формирует путь для сохранения файла предиктов с уникальным именем, включающим тип вывода,
     имя исходной папки с данными и текущую дату/время.
 
     Имя файла строится по шаблону:
@@ -373,7 +352,7 @@ def make_file_path(output_type: str, data_path: str, output_dir: str, ext: str) 
         ext (str): Расширение итогового файла (например, 'csv').
 
     Returns:
-        str: Полный путь к файлу с предсказаниями.
+        str: Полный путь к файлу.
     """
     # os.path.normpath(path) -приводит путь к "нормализованному" виду
     # (убирает лишние слэши, точки, двойные слэши и пр.)
@@ -391,7 +370,7 @@ def make_file_path(output_type: str, data_path: str, output_dir: str, ext: str) 
 def check_data_folder_and_count_files(
     data_path: str,
     pattern: str,
-) -> Tuple[List[str], int]:
+) -> tuple[list[str], int]:
     """
     Проверяет существование папки data_path и наличие файлов по маске (например, *.pq).
     Возвращает список путей к найденным файлам и их количество.
@@ -401,13 +380,13 @@ def check_data_folder_and_count_files(
         pattern (str): Маска расширения для поиска файлов.
 
     Returns:
-        Tuple[List[str], int]: Список путей к найденным файлам и их количество.
+        Tuple[List[str], int]: Кортеж со списком путей к найденным файлам и их количество.
 
     Raises:
         ValueError: Если директория отсутствует или не содержит файлов по маске.
     """
     logger.info(f"Starting check_data_folder_and_count_files : {data_path}")
-    # Проверяем существование папки/файла, при отсутвии выводим предупреждение
+    # Проверяем существование папки/файла, при отсутствии выводим предупреждение
     if not os.path.isdir(data_path):
         raise ValueError(f"Data path '{data_path}' is not a valid directory")
 
@@ -429,9 +408,11 @@ def save_predictions_with_id(
     ids: pd.Series,
     predictions: np.ndarray,
     output_path: str,
-):
+) -> None:
     """
-    Сохраняет предсказания (proba или predict) вместе с id в .csv
+    Сохраняет предикты (proba или predict),
+    создает DataFrame с колонкой 'id' и колонками предсказаний,
+    а затем сохраняет его в CSV-файл по указанному пути.
     Формат для proba поддерживает бинарный и многоклассовый формат:
         id, proba_class_0, proba_class_1, ...
     Формат для predict:
@@ -439,10 +420,11 @@ def save_predictions_with_id(
 
     Args:
         output_type (str): 'proba' или 'predict'
-        ids (Series): значения id для всех объектов
+        ids (pd.Series): значения id для всех объектов
         predictions (np.ndarray): массив предиктов (classes или вероятности)
         output_path (str): итоговый путь к файлу .csv
     """
+
     logger.info("Started save_predictions_with_id function")
     df_pred = pd.DataFrame()
     df_pred["id"] = ids
@@ -469,11 +451,3 @@ def save_predictions_with_id(
         raise ValueError(f"Unsupported output_type: {output_type}")
 
     df_pred.to_csv(output_path, index=False)
-
-
-# Добавим защитный блок main для тестов
-if __name__ == "__main__":
-    # Настройка логгера только для standalone запуска
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
-
-    pass

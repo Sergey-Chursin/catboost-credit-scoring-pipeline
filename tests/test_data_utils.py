@@ -12,7 +12,6 @@ from src.data_utils import (
     make_file_path,
     save_predictions_with_id,
     split_dataset_by_target,
-    split_target_only,
 )
 
 """
@@ -127,28 +126,6 @@ def test_split_dataset_by_target(tmp_path):
     # Проверим, что длины соответствуют train_size
     assert len(result["X_train"]) == 8
     assert len(result["X_test"]) == 2
-
-
-def test_split_target_only(tmp_path):
-    """
-    Проверяем split_target_only:
-    - разделяет только Series с таргетом
-    - размеры соответствуют train_size
-    """
-    df_target = pd.DataFrame({"id": np.arange(6), "target": [0, 1] * 3})
-    csv_path = tmp_path / "target.csv"
-    df_target.to_csv(csv_path, index=False)
-
-    split_res = split_target_only(
-        path_to_target=csv_path,
-        train_size=0.5,
-        random_state=42,
-        stratify_col="target",
-        verbose=False,
-    )
-
-    assert len(split_res["y_train"]) == 3
-    assert len(split_res["y_test"]) == 3
 
 
 def test_make_file_path_creates_expected_name():
