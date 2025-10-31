@@ -35,8 +35,6 @@ model_info: строка с краткой информацией о модел�
 запросы к любому endpoint прямо из браузера.
 """
 
-from typing import Any, Dict, List
-
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -50,7 +48,7 @@ app = FastAPI(title="Credit-Scoring API", version="1.0.0")
 
 # Чтобы не вызывать пайплайн второй раз для метода predict
 # получим метки классов из их вероятностей используя вычисленный порог
-threshold = THRESHOLD
+threshold: float = THRESHOLD
 
 # Настроим логер и передадим его в пайплайн
 logger = setup_logging("info")
@@ -119,13 +117,21 @@ class FeatureVector(BaseModel):
 # Второй моделью делаем запрос – список объектов FeatureVector
 # Запрос - это словарь с одним ключом 'data' и списком словарей внутри
 class PredictionRequest(BaseModel):
-    data: List[FeatureVector]
+    data: list[FeatureVector]
+
+
+class SinglePrediction(BaseModel):
+    """Модель для предсказания по одному клиенту."""
+
+    client_id: int
+    probability: float
+    class_label: int
 
 
 # Модель ответа - список словарей(1 словарь = 1 клиент) и информация о модели
 class PredictionResponse(BaseModel):
-    predictions: List[Dict[str, Any]]
-    model_info: str = "CatBoost ensemble, 6 models, binary classification"
+    predictions: list[SinglePrediction]
+    model_info: str = "CatBoost ensemble, 6 models, ROC AUC = 0.7558"
 
 
 @app.get("/health")
@@ -167,8 +173,17 @@ async def predict(request: PredictionRequest):
     # возвращаемые пайплайном.
     # df["id"].unique() - обрабатывает случаи с несколькими записями для одного клиента
     resp = [
-        {"client_id": int(unique_id), "probability": float(prob), "class": int(label)}
-        for unique_id, prob, label in zip(df["id"].unique(), proba, pred, strict=True)
+        SinglePrediction(
+            client_id=int(unique_id),
+            probability=float(prob),
+            class_label=int(label),
+        )
+        for unique_id, prob, label in zip(
+            df["id"].unique(),
+            proba,
+            pred,
+            strict=True,
+        )
     ]
     # Создаём экземпляр схемы-ответа, автоматически сериализуем в JSON
     return PredictionResponse(predictions=resp)
