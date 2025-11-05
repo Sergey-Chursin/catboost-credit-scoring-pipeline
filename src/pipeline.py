@@ -4,9 +4,9 @@ import gc
 import logging
 import pickle
 from functools import partial
-from typing import Any, Dict, List, Optional
 
 import numpy as np
+import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 
@@ -81,7 +81,7 @@ from src.preprocessing import (
 если действие включаемое флагом не поддерживается в данном режиме
 оно просто игнорируется. 
 ------------------  
---help - Вывод help-сообщения
+--help   Вывод help-сообщения
 
 -----------------
 --log-level off      тихий режим, логи полностью отключены.
@@ -147,7 +147,8 @@ from src.preprocessing import (
 # Создаём парсер c описанием для --help и
 # форматированием многострочных help
 parser = argparse.ArgumentParser(
-    description="Launching the pipeline", formatter_class=argparse.RawTextHelpFormatter
+    description="Launching the pipeline",
+    formatter_class=argparse.RawTextHelpFormatter,
 )
 """
 Настраиваем аргументы парсера 
@@ -160,7 +161,11 @@ parser.add_argument(
     "--log-level",
     type=str,
     default="off",
-    choices=["info", "debug", "off"],
+    choices=[
+        "info",
+        "debug",
+        "off",
+    ],
     help=(
         "Logging level: \n"
         "info - enable detailed logs\n"
@@ -175,7 +180,13 @@ parser.add_argument(
     "--mode",
     type=str,
     default="train",
-    choices=["train", "test", "inference", "transform_split", "transform_data"],
+    choices=[
+        "train",
+        "test",
+        "inference",
+        "transform_split",
+        "transform_data",
+    ],
     help=(
         "Execution mode:\n"
         "train - fit and save model\n"
@@ -192,7 +203,10 @@ parser.add_argument(
     "--transform-subset",
     type=str,
     default="train",
-    choices=["train", "test"],
+    choices=[
+        "train",
+        "test",
+    ],
     help=(
         "Which subset to transform in transform_split mode:\n"
         "train - transform training subset\n"
@@ -206,7 +220,10 @@ parser.add_argument(
     "--output",
     type=str,
     default="proba",
-    choices=["proba", "predict"],
+    choices=[
+        "proba",
+        "predict",
+    ],
     help=(
         "Output type for test/inference:\n"
         "proba -only predicted probabilities\n"
@@ -219,7 +236,11 @@ parser.add_argument(
 parser.add_argument(
     "--eval-metrics",
     type=str,
-    choices=["off", "auc", "acc"],
+    choices=[
+        "off",
+        "auc",
+        "acc",
+    ],
     default="off",
     help=(
         "Evaluate metrics after train/test/inference:\n"
@@ -271,23 +292,23 @@ parser.add_argument(
 # Соберём пайплайн обработки данных и обучения ансамбля моделей
 def main_pipeline(
     sample_frac: float,
-    params_list: List[Dict],
-    weights_list: List[float],
+    params_list: list[dict[str, int | float | bool | str]],
+    weights_list: list[float],
     threshold: float,
-    cat_features: List[str],
+    cat_features: list[str],
     n_splits: int,
     seed: int,
     shuffle: bool,
-    drop_list_enc_paym_norm_summ_diff: List[str],
+    drop_list_enc_paym_norm_summ_diff: list[str],
     norma: str,
-    mean_freq_source_list: List[str],
-    drop_list_mean_value_frequency: List[str],
-    prop_features_dict: Dict[str, Any],
-    float_downcast_columns_list: List[str],
-    drop_list: List[str],
+    mean_freq_source_list: list[str],
+    drop_list_mean_value_frequency: list[str],
+    prop_features_dict: dict[str, list[int]],
+    float_downcast_columns_list: list[str],
+    drop_list: list[str],
     cast_type_map: dict[str, str] | None,
-    logger: Optional[logging.Logger] = None,
-):
+    logger: logging.Logger | None = None,
+) -> Pipeline:
     """
     Создаёт и возвращает основной Pipeline для обучения и предсказания.
 
@@ -297,35 +318,34 @@ def main_pipeline(
 
     Args:
         sample_frac (float): Доля строк исходных данных, используемая для вычисления медиан в SampleMedianImputer.
-        params_list (List[Dict]): Список словарей с гиперпараметрами для каждой модели CatBoost в ансамбле
-            (N фолдов + 1 финальная модель).
-        weights_list (List[float]): Список весов для взвешивания предсказаний ансамбля моделей.
-        threshold (float): Порог для жёсткой классификации (в CatBoostEnsembleClassifier, параметр predict).
-        cat_features (List[str]): Список названий категориальных фичей для CatBoost.
+        params_list (list[dict[str, int | float | bool | str]]): Список словарей с гиперпараметрами для
+            каждой модели CatBoost в ансамбле (N фолдов + 1 финальная модель).
+        weights_list (list[float]): Список весов для взвешивания предсказаний ансамбля моделей.
+        threshold (float): Порог для жёсткой классификации в CatBoos.
+        cat_features (list[str]): Список названий категориальных фичей для CatBoost.
         n_splits (int): Количество фолдов для ансамблирования моделей (StratifiedKFold).
         seed (int): Seed для воспроизводимости разбиения и обучения моделей.
         shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
-        drop_list_enc_paym_norm_summ_diff: List[str]: Список колонок на удаление в функции
+        drop_list_enc_paym_norm_summ_diff (list[str]): Список колонок на удаление в функции
             enc_paym_norm_group_sum_diff_pipeline.
         norma (str): Название столбца используемого для нормализации суммы частотностей
             в трансформере MeanValueFrequencyTransformer.
-        mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в трансформере
+        mean_freq_source_list (list[str]): Список признаков для расчёта средних частот значений в трансформере
             MeanValueFrequencyTransformer.
-        drop_list_mean_value_frequency: List[str]: Список колонок на удаление в трансформере
+        drop_list_mean_value_frequency (list[str]): Список колонок на удаление в трансформере
             MeanValueFrequencyTransformer.
-        prop_features_dict (Dict[str, Any]): Словарь, определяющий признаки и значения для создания
+        prop_features_dict (dict[str, list[int]]): Словарь, определяющий признаки и значения для создания
             пропорциональных фичей в функции definite_value_proportion_features_pipeline.
-        float_downcast_columns_list: List[str]: Список колонок  тип которых можно
+        float_downcast_columns_list (list[str]): Список колонок  тип которых можно
             безопасно понизить с float64 до float32 без потери информативности
             из-за округления значений.
-        drop_list (List[str]): Список признаков для удаления из датасета на последнем этапе пайплайна
-        cast_type_map : dict  Словарь соответствия для приведения типов колонок при загрузке данных
-            {имя_колонки(str): тип(str)}.
-        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
-            Если None (по умолчанию), логирование этапов данной функции будет отключено.
+        drop_list (list[str]): Список признаков для удаления из датасета на последнем этапе пайплайна.
+        cast_type_map (dict[str, str] | None): Словарь соответствия для приведения типов колонок при загрузке данных.
+        logger (logging.Logger | None): Логгер для сообщений.
+            По умолчанию None.
 
     Returns:
-        sklearn.pipeline.Pipeline: Собранный pipeline, готовый для обучения (fit).
+        sklearn.pipeline.Pipeline: Собранный pipeline, готовый для обучения.
     """
 
     # Создаём SampleMedianImputer для заполнения пустых значений медианами
@@ -341,7 +361,8 @@ def main_pipeline(
                 "cast_type",
                 FunctionTransformer(
                     partial(
-                        cast_columns_by_map_preprocessing, cast_type_map=cast_type_map
+                        cast_columns_by_map_preprocessing,
+                        cast_type_map=cast_type_map,
                     )
                 ),
             ),
@@ -424,7 +445,10 @@ def main_pipeline(
     return main_pipe
 
 
-def load_pipeline(path: str, logger: Optional[logging.Logger] = None):
+def load_pipeline(
+    path: str,
+    logger: logging.Logger | None = None,
+) -> Pipeline:
     """
     Загружает ранее сохранённый (обученный) пайплайн из файла.
 
@@ -433,11 +457,11 @@ def load_pipeline(path: str, logger: Optional[logging.Logger] = None):
 
     Args:
         path (str): Путь к файлу с сохранённым пайплайном.
-        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
-            Если None (по умолчанию), логирование этапов данной функции будет отключено.
+        logger (logging.Logger | None): Логгер для сообщений.
+            По умолчанию None.
 
     Returns:
-        object: Загруженный pipeline.
+        Pipeline: Загруженный pipeline.
     """
     try:
         with open(path, "rb") as file:
@@ -460,7 +484,7 @@ def run_train_coordinator(
     pipeline_path: str,
     raw_data_path: str,
     temp_data_path: str,
-    pre_features: List[str],
+    pre_features: list[str],
     num_parts_to_preprocess_at_once: int,
     pattern: str,
     target_path: str,
@@ -468,28 +492,28 @@ def run_train_coordinator(
     seed_split_dataset: int,
     stratify_col: str,
     sample_frac: float,
-    params_list: List[Dict],
-    weights_list: List[float],
+    params_list: list[dict[str, int | float | bool | str]],
+    weights_list: list[float],
     threshold: float,
-    cat_features: List[str],
+    cat_features: list[str],
     n_splits: int,
     seed: int,
     shuffle: bool,
     eval_metric: str,
     verbose: bool,
-    drop_list_enc_paym_norm_summ_diff: List[str],
+    drop_list_enc_paym_norm_summ_diff: list[str],
     norma: str,
-    mean_freq_source_list: List[str],
-    drop_list_mean_value_frequency: List[str],
-    prop_features_dict: Dict[str, Any],
-    float_downcast_columns_list: List[str],
-    drop_list: List[str],
-    classes_metric_list: List[str],
+    mean_freq_source_list: list[str],
+    drop_list_mean_value_frequency: list[str],
+    prop_features_dict: dict[str, list[int]],
+    float_downcast_columns_list: list[str],
+    drop_list: list[str],
+    classes_metric_list: list[str],
     cast_type_map: dict[str, str] | None,
     search_file_ext: str,
-    logger: Optional[logging.Logger] = None,
-    mask: Optional[str] = None,
-):
+    logger: logging.Logger | None = None,
+    mask: str | None = None,
+) -> None:
     """
     Запускает процесс обучения основного пайплайна на обучающих данных.
 
@@ -497,52 +521,53 @@ def run_train_coordinator(
         pipeline_path (str): Путь для сохранения обученного пайплайна.
         raw_data_path (str): Путь к исходной папке с "сырыми" parquet-данными для обучения.
         temp_data_path (str): Путь к папке для временного сохранения обработанных чанков данных.
-        pre_features (List[str]): Список колонок исходных признаков, которые нужно оставить при загрузке данных.
+        pre_features (list[str]): Список колонок исходных признаков, которые нужно оставить при загрузке данных.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
         pattern (str): Маска расширения для поиска файлов. Отличается от search_file_ext даже
             при одном и том же расширении.
-        target_path (str): Путь к CSV-файлу с целевой переменной (таргетом).
-        train_size (float): Доля обучающей выборки (от 0 до 1).
+        target_path (str): Путь к CSV-файлу с целевой переменной.
+        train_size (float): Доля обучающей выборки.
         seed_split_dataset (int): Seed для разбиения на train/test (гарантирует воспроизводимость).
         stratify_col (str): Название колонки, по которой производится стратифицированное разбиение train/test.
         sample_frac (float): Доля строк исходных данных, используемая для вычисления медиан в SampleMedianImputer.
-        params_list (List[Dict]): Список словарей с гиперпараметрами для каждой модели ансамбля CatBoost.
-        weights_list (List[float]): Список весов для взвешивания предсказаний ансамбля моделей.
+        params_list (list[dict[str, int | float | bool | str]]): Список словарей с гиперпараметрами для
+            каждой модели ансамбля CatBoost.
+        weights_list (list[float]): Список весов для взвешивания предсказаний ансамбля моделей.
         threshold (float): Порог для жёсткой классификации.
-        cat_features (List[str]): Список названий категориальных признаков.
+        cat_features (list[str]): Список названий категориальных признаков.
         n_splits (int): Количество фолдов для ансамблирования моделей.
         seed (int): Seed для инициализации ансамблевого классификатора.
         shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
         eval_metric (str): Режим расчёта метрик после обучения.
-        verbose (bool): Включить прогресс-бары.
-        drop_list_enc_paym_norm_summ_diff: List[str]: Список колонок на удаление в функции
+        verbose (bool): Включить прогресс-бары загрузки сырых данных..
+        drop_list_enc_paym_norm_summ_diff (list[str]): Список колонок на удаление в функции
             enc_paym_norm_group_sum_diff_pipeline.
         norma (str): Название столбца используемого для нормализации суммы частотностей
             в трансформере MeanValueFrequencyTransformer.
-        mean_freq_source_list (List[str]): Список признаков для расчёта средних частот значений в трансформере
+        mean_freq_source_list (list[str]): Список признаков для расчёта средних частот значений в трансформере
             MeanValueFrequencyTransformer.
-        drop_list_mean_value_frequency: List[str]: Список колонок на удаление в трансформере
+        drop_list_mean_value_frequency (list[str]): Список колонок на удаление в трансформере
             MeanValueFrequencyTransformer.
-        prop_features_dict (Dict[str, Any]): Словарь, определяющий признаки и значения для создания
+        prop_features_dict (dict[str, list[int]]): Словарь, определяющий признаки и значения для создания
             пропорциональных фичей в функции definite_value_proportion_features_pipeline.
-        float_downcast_columns_list: List[str]: Список колонок  тип которых можно
+        float_downcast_columns_list (list[str]): Список колонок  тип которых можно
             безопасно понизить с float64 до float32 без потери информативности
             из-за округления значений.
-        drop_list (List[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
-        classes_metric_list: (List[str]) Список метрик требующих метки классов для расчета.
+        drop_list (list[str]): Список признаков для удаления и очистки датасета на последнем этапе пайплайна
+        classes_metric_list: (list[str]) Список метрик требующих метки классов для расчета.
             Используется в pred_and_metrics_compatible.
-        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип},
-            где тип — строка для приведения типа (например, 'int8', 'float32', 'category').
+        cast_type_map (dict[str, str] | None) : Словарь для приведения типов колонок {имя_колонки: тип}.
             Если None, типы не приводятся.
         search_file_ext (str): Расширение файлов для поиска (например, ".csv", ".pq").
             Отличается от pattern даже при одном и том же расширении.
-        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
-            Если None (по умолчанию), логирование этапов данной функции будет отключено.
-        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+        logger (logging.Logger | None): Логгер для сообщений.
+            По умолчанию None.
+        mask (str | None): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
+            По умолчанию None.
 
-    Последовательность действий:
+    Алгоритм работы:
         - Загружает исходный датасет с помощью функции load_dataset.
         - Загружает целевые значения и разделяет датасет на обучающую и тестовую выборки
           с помощью функции split_dataset_by_target.
@@ -563,7 +588,10 @@ def run_train_coordinator(
         logger.info("Train mode started")
 
     # Получаем количество файлов в папке с данными
-    files_count = check_data_folder_and_count_files(raw_data_path, pattern)[1]
+    files_count = check_data_folder_and_count_files(
+        raw_data_path,
+        pattern,
+    )[1]
 
     if logger is not None:
         logger.info("Loading raw dataset")
@@ -580,6 +608,8 @@ def run_train_coordinator(
         search_file_ext=search_file_ext,
     )
 
+    # Функция load_dataset может вернуть None,
+    # поэтому вводим проверку
     if raw_data is None:
         raise ValueError("Dataset could not be loaded.")
 
@@ -623,7 +653,10 @@ def run_train_coordinator(
         drop_list=drop_list,
         cast_type_map=cast_type_map,
         logger=logger,
-    ).fit(train_test_dict["X_train"], train_test_dict["y_train"])
+    ).fit(
+        train_test_dict["X_train"],
+        train_test_dict["y_train"],
+    )
 
     if logger is not None:
         logger.info(f"Saving trained pipeline to: {pipeline_path}")
@@ -648,7 +681,7 @@ def run_test_coordinator(
     pipeline_path: str,
     raw_data_path: str,
     temp_data_path: str,
-    pre_features: List[str],
+    pre_features: list[str],
     num_parts_to_preprocess_at_once: int,
     pattern: str,
     target_path: str,
@@ -659,13 +692,13 @@ def run_test_coordinator(
     predict_file_extension: str,
     output: str,
     eval_metrics: str,
-    classes_metric_list: List[str],
+    classes_metric_list: list[str],
     verbose: bool,
-    cast_type_map: Optional[dict],
+    cast_type_map: dict[str, str] | None,
     search_file_ext: str,
-    logger: Optional[logging.Logger] = None,
-    mask: Optional[str] = None,
-):
+    logger: logging.Logger | None = None,
+    mask: str | None = None,
+) -> None:
     """
     Выполняет тестирование обученного пайплайна на тестовой выборке.
 
@@ -673,34 +706,35 @@ def run_test_coordinator(
         pipeline_path (str): Путь к сериализованному sklearn pipeline.
         raw_data_path (str): Путь к директории с "сырыми" parquet-данными для тестирования.
         temp_data_path (str): Директория для временного хранения обработанных файлов.
-        pre_features (List[str]): Список названий колонок, которые нужно загрузить из данных.
+        pre_features (list[str]): Список названий колонок, которые нужно загрузить из данных.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
         pattern (str): Маска расширения для поиска файлов. Отличается от search_file_ext даже
             при одном и том же расширении.
         target_path (str): Путь к CSV-файлу с целевой переменной.
-        train_size (float): Доля обучающей выборки (от 0 до 1 при разбиении train/test).
+        train_size (float): Доля обучающей выборки.
         seed_split_dataset (int): Seed для разделения на train/test (гарантирует воспроизводимость).
         stratify_col (str): Имя колонки, по которой выполняется стратификация при разделении.
         test_predict_path (str): Директория для сохранения предсказаний на тестовых данных.
-        predict_file_extension: (str) Тип расширения файлов предиктов для функции make_file_path.
+        predict_file_extension (str): Тип расширения файлов предиктов для функции make_file_path.
         output (str): Режим вывода предсказаний — 'proba' (вероятности классов)
             или 'predict' (жёсткая классификация).
         eval_metrics (str): Режим расчёта метрик на тестовой выборке ('off', 'auc', 'acc').
-        classes_metric_list: (List[str]) Список метрик требующих метки классов для расчета.
+        classes_metric_list (list[str]): Список метрик требующих метки классов для расчета.
             Используется в pred_and_metrics_compatible.
-        verbose (bool): Включить  прогресс-бары.
-        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип}.
+        verbose (bool): Включить  прогресс-бары загрузки сырых данных.
+        cast_type_map (dict[str, str] | None): Словарь для приведения типов колонок {имя_колонки: тип}.
             Если None, типы не приводятся.
         search_file_ext (str): Расширение файлов для поиска (например, ".csv", ".pq").
             Отличается от pattern даже при одном и том же расширении.
-        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
-            Если None (по умолчанию), логирование этапов данной функции будет отключено.
-        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+        logger (logging.Logger | None): Логгер для сообщений.
+            По умолчанию None.
+        mask (str | None): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
+            По умолчанию None.
 
-    Функция производит следующие этапы:
-    - Загружает ранее обученный пайплайн (модель с этапами препроцессинга и feature engineering).
+    Алгоритм работы:
+    - Загружает ранее обученный пайплайн.
     - Загружает исходный датасет и разделяет его на обучающую и тестовую части.
     - Получает предсказания (вероятности классов либо метки классов) на тестовой подвыборке
       в зависимости от режима ('proba' или 'predict'), заданного через аргумент args.output.
@@ -709,7 +743,7 @@ def run_test_coordinator(
     - При включении флгов --eval-metrics acc/auc  выводит в логи выбранную метрику.
     - Протоколирует каждый ключевой этап с помощью логера.
 
-    Исключения:
+     Raises:
     - Возникает и логируется ошибка, если обученный пайплайн не найден или не может быть загружен.
 
     Returns:
@@ -734,7 +768,10 @@ def run_test_coordinator(
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
-    files_count = check_data_folder_and_count_files(raw_data_path, pattern)[1]
+    files_count = check_data_folder_and_count_files(
+        raw_data_path,
+        pattern,
+    )[1]
 
     if logger is not None:
         logger.info("Loading raw dataset")
@@ -751,6 +788,8 @@ def run_test_coordinator(
         mask=mask,
         search_file_ext=search_file_ext,
     )
+    # Функция load_dataset может вернуть None,
+    # поэтому вводим проверку
     if raw_data is None:
         raise ValueError("Dataset could not be loaded.")
 
@@ -774,7 +813,10 @@ def run_test_coordinator(
 
     # Используем dispatch mapping для выбора жесткой или мягкой классификации
     # Создадим словарь режимов вывода
-    output_handlers = {"proba": pipe.predict_proba, "predict": pipe.predict}
+    output_handlers = {
+        "proba": pipe.predict_proba,
+        "predict": pipe.predict,
+    }
     # Получаем значение из парсера и вызываем соответствующий метод предикта
     handler = output_handlers.get(output)
 
@@ -788,7 +830,16 @@ def run_test_coordinator(
             f"Getting {'probabilities' if output == 'proba' else 'classes'} for X_test data"
         )
 
-    predictions = handler(train_test_dict["X_test"])
+    predictions: np.ndarray | tuple[np.ndarray, np.ndarray] = handler(
+        train_test_dict["X_test"]
+    )
+
+    # Эта ветка никогда не должна выполнится при данном классификаторе
+    # который в предиктах возвращает только массивы,
+    # но для безопасности добавим проверку.
+    if isinstance(predictions, tuple):
+        predictions = predictions[1]
+
     # Cчитаем метрику по соответстывующему флагу.
     # Если полученный выше тип предикта соответствует метрике,
     # то используется он, иначе тестовая часть датасета снова обрабатывается
@@ -824,7 +875,7 @@ def run_test_coordinator(
     # Используем drop_duplicates так как X_test это датасет до агрегаций в пайплайне
     ids = train_test_dict["X_test"]["id"].drop_duplicates()
 
-    # Сохраненяем предикты в.csv
+    # Сохраненяем предикты в.csv файл
     save_predictions_with_id(
         output_type=output,
         ids=ids,
@@ -841,18 +892,18 @@ def run_inference_coordinator(
     data_path: str,
     max_files: int,
     temp_data_path: str,
-    pre_features: List[str],
+    pre_features: list[str],
     num_parts_to_preprocess_at_once: int,
     pattern: str,
     predict_file_extension: str,
     output: str,
     output_dir: str,
     verbose: bool,
-    cast_type_map: Optional[dict],
+    cast_type_map: dict[str, str] | None,
     search_file_ext: str,
-    logger: Optional[logging.Logger] = None,
-    mask: Optional[str] = None,
-):
+    logger: logging.Logger | None = None,
+    mask: str | None = None,
+) -> None:
     """
     Запускает режим инференса: загружает обученный пайплайн, подготавливает новые данные,
     вычисляет предсказания и сохраняет их в файл, поддерживая как вероятностный (proba),
@@ -861,33 +912,34 @@ def run_inference_coordinator(
     Args:
         pipeline_path (str): Путь к сериализованному sklearn pipeline.
         data_path (str): Путь к директории с новыми данными.
-        max_files (int, optional): Количество скачиваемых из папки файлов.
+        max_files (int): Количество скачиваемых из папки файлов.
             Если не задано то качаются все файлы из папки.
         temp_data_path (str): Директория для временного хранения обработанных частей данных.
-        pre_features (List[str]): Список колонок, которые нужно оставить при загрузке датасета.
+        pre_features (list[str]): Список колонок, которые нужно оставить при загрузке датасета.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
         pattern (str): Маска расширения для поиска файлов. Отличается от search_file_ext даже
             при одном и том же расширении.
-        predict_file_extension: (str) Тип расширения файлов предиктов для функции make_file_path
+        predict_file_extension (str): Тип расширения файлов предиктов для функции make_file_path
         output (str): Режим вывода предсказаний: 'proba' (вероятности классов) или 'predict' (метки классов).
         output_dir (str): Директория для сохранения итогового файла с предсказаниями.
-        verbose (bool): Включить расширенный режим логирования и прогресс-бары.
-        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип}.
+        verbose (bool): Включить прогресс-бары загрузки данных.
+        cast_type_map (dict[str, str] | None): Словарь для приведения типов колонок {имя_колонки: тип}.
             Если None, типы не приводятся.
         search_file_ext (str): Расширение файлов для поиска (например, ".csv", ".pq").
             Отличается от pattern даже при одном и том же расширении.
-        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
-            Если None (по умолчанию), логирование этапов данной функции будет отключено.
-        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+        logger (logging.Logger | None): Логгер для сообщений.
+            По умолчанию None.
+        mask (str | None): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
+            По умолчанию None.
 
     Returns:
         None
 
     Side Effects:
         - Сохраняет файл с предсказаниями и колонкой id в директорию output_dir.
-        - Записывает этапы вычислений в лог.
+        - Логирует этапы обработки.
 
     Примечание:
     Для запуска функции необходимо наличие ранее обученного пайплайна
@@ -905,7 +957,10 @@ def run_inference_coordinator(
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
-    real_files_count = check_data_folder_and_count_files(data_path, pattern)[1]
+    real_files_count = check_data_folder_and_count_files(
+        data_path,
+        pattern,
+    )[1]
 
     # Если количество файлов не задано через парсер,
     # то выбираем все файлы из паки.
@@ -913,7 +968,10 @@ def run_inference_coordinator(
     if max_files is None:
         files_count = real_files_count
     else:
-        files_count = min(real_files_count, max_files)
+        files_count = min(
+            real_files_count,
+            max_files,
+        )
 
     if logger is not None:
         logger.info(
@@ -935,12 +993,17 @@ def run_inference_coordinator(
         mask=mask,
         search_file_ext=search_file_ext,
     )
+    # Функция load_dataset может вернуть None,
+    # поэтому вводим проверку
     if data is None:
         raise ValueError("Dataset could not be loaded.")
 
     # Используем dispatch mapping для выбора жесткой или мягкой классификации
     # Создадим словарь режимов вывода
-    output_handlers = {"proba": pipe.predict_proba, "predict": pipe.predict}
+    output_handlers = {
+        "proba": pipe.predict_proba,
+        "predict": pipe.predict,
+    }
     # Получаем значение из парсера и вызываем соответствующий метод предикта
     handler = output_handlers.get(output)
 
@@ -956,6 +1019,12 @@ def run_inference_coordinator(
 
     predictions = handler(data)
 
+    # Эта ветка никогда не должна выполнится при данном классификаторе
+    # который в предиктах возвращает только массивы,
+    # # но для безопасности добавим проверку.
+    if isinstance(predictions, tuple):
+        predictions = predictions[1]
+
     # БЛОК СОХРАНЕНИЯ ПРЕДИКТА
 
     # Меняем тип данных при мягкой классификации,
@@ -969,7 +1038,10 @@ def run_inference_coordinator(
 
     # Создаём имя файла предикта
     predict_file_name = make_file_path(
-        output, data_path, output_dir, ext=predict_file_extension
+        output,
+        data_path,
+        output_dir,
+        ext=predict_file_extension,
     )
 
     if logger is not None:
@@ -994,7 +1066,7 @@ def run_transform_split_coordinator(
     pipeline_path: str,
     raw_data_path: str,
     temp_data_path: str,
-    pre_features: List[str],
+    pre_features: list[str],
     num_parts_to_preprocess_at_once: int,
     pattern: str,
     target_path: str,
@@ -1002,15 +1074,15 @@ def run_transform_split_coordinator(
     seed_split_dataset: int,
     stratify_col: str,
     verbose: bool,
-    cast_type_map: Optional[dict],
+    cast_type_map: dict[str, str] | None,
     output_dir: str,
     transform_subset: str,
     search_file_ext: str,
     save_file_ext: str,
     output_type: str = "transformed",
-    logger: Optional[logging.Logger] = None,
-    mask: Optional[str] = None,
-):
+    logger: logging.Logger | None = None,
+    mask: str | None = None,
+) -> None:
     """
     Выполняет трансформацию тренировочной или тестовой выборки
     и сохраняет результат.
@@ -1019,37 +1091,38 @@ def run_transform_split_coordinator(
         pipeline_path (str): Путь к сериализованному sklearn pipeline.
         raw_data_path (str): Путь к директории с "сырыми" parquet-данными.
         temp_data_path (str): Директория для временного хранения обработанных файлов.
-        pre_features (List[str]): Список названий колонок, которые нужно загрузить из данных.
+        pre_features (list[str]): Список названий колонок, которые нужно загрузить из данных.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
         pattern (str): Маска расширения для поиска файлов. Отличается от search_file_ext даже
             при одном и том же расширении.
         target_path (str): Путь к CSV-файлу с целевой переменной.
-        train_size (float): Доля обучающей выборки (от 0 до 1 при разбиении train/test).
+        train_size (float): Доля обучающей выборки.
         seed_split_dataset (int): Seed для разделения на train/test (гарантирует воспроизводимость).
         stratify_col (str): Имя колонки, по которой выполняется стратификация при разделении.
-        verbose (bool): Включить  прогресс-бары.
-        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип}.
+        verbose (bool): Включить прогресс-бары загрузки данных.
+        cast_type_map (dict[str, str] | None): Словарь для приведения типов колонок {имя_колонки: тип}.
             Если None, типы не приводятся.
         output_dir (str): Директория для сохранения трансформированного файла.
         transform_subset (str): Выбор train/test подвыборки для трансформации.
         search_file_ext (str): Расширение файлов для поиска (например, ".csv", ".pq").
             Отличается от pattern даже при одном и том же расширении.
         save_file_ext (str): Расширение файла для сохранения результата (например, ".csv", ".pq").
-        output_type (str, optional): Начало имени трансформированных файлов при сохранении.
+        output_type (str): Начало имени трансформированных файлов при сохранении.
             По умолчанию 'transformed'.
-        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
-            Если None (по умолчанию), логирование этапов данной функции будет отключено.
-        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+        logger (logging.Logger | None): Логгер для сообщений.
+            По умолчанию None.
+        mask (str | None): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
+            По умолчанию None.
 
-    Функция производит следующие этапы:
-    - Загружает ранее обученный пайплайн (модель с этапами препроцессинга и feature engineering).
+    Алгоритм работы:
+    - Загружает ранее обученный пайплайн.
     - Загружает исходный датасет и разделяет его на обучающую и тестовую части.
     - Трансформирует train/test набор и сохраняет результат в csv файл.
-    - Протоколирует каждый ключевой этап с помощью логера.
+    - Логирует каждый ключевой этап.
 
-    Исключения:
+    Raises:
     - Возникает и логируется ошибка, если обученный пайплайн не найден или не может быть загружен.
 
     Returns:
@@ -1069,14 +1142,17 @@ def run_transform_split_coordinator(
         logger.info(f"Transform subset selected: {transform_subset}")
 
     if logger is not None:
-        logger.info("Loading  the pipeline")
+        logger.info("Loading  pipeline")
 
     # Пробуем загрузить обученный пайплайн,
     # если его нет то скрипт остановится с ошибкой.
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
-    files_count = check_data_folder_and_count_files(raw_data_path, pattern)[1]
+    files_count = check_data_folder_and_count_files(
+        raw_data_path,
+        pattern,
+    )[1]
 
     # Загружаем датасет
     if logger is not None:
@@ -1093,6 +1169,8 @@ def run_transform_split_coordinator(
         mask=mask,
         search_file_ext=search_file_ext,
     )
+    # Функция load_dataset может вернуть None,
+    # поэтому вводим проверку
     if raw_data is None:
         raise ValueError("Dataset could not be loaded.")
 
@@ -1124,7 +1202,14 @@ def run_transform_split_coordinator(
         subset_name = "test"
 
     # Трансформируем данные
-    transformed_data = pipe.transform(data_to_transform)
+    transformed_data: pd.DataFrame | np.ndarray = pipe.transform(data_to_transform)
+
+    # Проверка на случай, если sklearn pipeline по каким-то причинам вернёт
+    # numpy-массив вместо DataFrame.
+    # Для текущего пайплайна эта ветка не должна выполняться,
+    # но добавлена для типовой безопасности и совместимости с mypy
+    if isinstance(transformed_data, np.ndarray):
+        transformed_data = pd.DataFrame(transformed_data)
 
     # Создаём путь для сохранения
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")
@@ -1145,18 +1230,18 @@ def run_transform_data_coordinator(
     data_path: str,
     max_files: int,
     temp_data_path: str,
-    pre_features: List[str],
+    pre_features: list[str],
     num_parts_to_preprocess_at_once: int,
     pattern: str,
     output_dir: str,
     verbose: bool,
-    cast_type_map: Optional[dict],
+    cast_type_map: dict[str, str] | None,
     search_file_ext: str,
     save_file_ext: str,
     output_type: str = "transformed",
-    logger: Optional[logging.Logger] = None,
-    mask: Optional[str] = None,
-):
+    logger: logging.Logger | None = None,
+    mask: str | None = None,
+) -> None:
     """
     Выполняет трансформацию  данных и сохраняет результат.
 
@@ -1166,31 +1251,32 @@ def run_transform_data_coordinator(
         max_files (int, optional): Количество скачиваемых из папки файлов.
             Если не задано то качаются все файлы из папки.
         temp_data_path (str): Директория для временного хранения обработанных частей данных.
-        pre_features (List[str]): Список колонок, которые нужно оставить при загрузке датасета.
+        pre_features (list[str]): Список колонок, которые нужно оставить при загрузке датасета.
         num_parts_to_preprocess_at_once (int): Сколько партиций данных обрабатывать за один проход.
         pattern (str): Маска расширения для поиска файлов. Отличается от search_file_ext даже
             при одном и том же расширении.
         output_dir (str): Директория для сохранения трансформированного файла.
-        verbose (bool): Включить прогресс-бары.
-        cast_type_map : Словарь для приведения типов колонок {имя_колонки: тип}.
+        verbose (bool): Включить прогресс-бары загрузки данных.
+        cast_type_map (dict[str, str] | None): Словарь для приведения типов колонок {имя_колонки: тип}.
             Если None, типы не приводятся.
         search_file_ext (str): Расширение файлов для поиска (например, ".csv", ".pq").
             Отличается от pattern даже при одном и том же расширении.
         save_file_ext (str): Расширение файла для сохранения результата (например, ".csv", ".pq").
-        output_type (str, optional): Начало имени трансформированных файлов при сохранении.
+        output_type (str): Начало имени трансформированных файлов при сохранении.
             По умолчанию 'transformed'.
-        logger (Optional[logging.Logger], default=None): Логгер для сообщений.
-            Если None (по умолчанию), логирование этапов данной функции будет отключено.
-        mask (Optional[str], optional): Маска для выбора файлов в папке (например, 'train').
+        logger (logging.Logger | None): Логгер для сообщений.
+            По умолчанию None.
+        mask (str | None): Маска для выбора файлов в папке (например, 'train').
             Если указана, выбираются только файлы, имя которых начинается с mask;
             если None — выбираются все файлы.
+            По умолчанию None.
 
     Returns:
         None
 
     Side Effects:
         - Сохраняет файл с предсказаниями и колонкой id в директорию output_dir.
-        - Записывает этапы вычислений в лог.
+        - Логирует этапы обработки.
 
     Примечание:
     Для запуска функции необходимо наличие ранее обученного пайплайна
@@ -1200,14 +1286,17 @@ def run_transform_data_coordinator(
         logger.info("Transform_data mode started")
 
     if logger is not None:
-        logger.info("Loading  the pipeline")
+        logger.info("Loading pipeline")
 
     # Пробуем загрузить обученный пайплайн,
     # если его нет то скрипт остановится с ошибкой.
     pipe = load_pipeline(pipeline_path)
 
     # Получаем количество файлов в папке с данными
-    real_files_count = check_data_folder_and_count_files(data_path, pattern)[1]
+    real_files_count = check_data_folder_and_count_files(
+        data_path,
+        pattern,
+    )[1]
 
     # Если количество файлов не задано через парсер,
     # то выбираем все файлы из паки.
@@ -1215,7 +1304,10 @@ def run_transform_data_coordinator(
     if max_files is None:
         files_count = real_files_count
     else:
-        files_count = min(real_files_count, max_files)
+        files_count = min(
+            real_files_count,
+            max_files,
+        )
 
     if logger is not None:
         logger.info(
@@ -1238,8 +1330,20 @@ def run_transform_data_coordinator(
         search_file_ext=search_file_ext,
     )
 
+    # Функция load_dataset может вернуть None,
+    # поэтому вводим проверку
+    if data is None:
+        raise ValueError("data for transform must not be None")
+
     # Трансформируем даные
-    transformed_data = pipe.transform(data)
+    transformed_data: pd.DataFrame | np.ndarray = pipe.transform(data)
+
+    # Проверка на случай, если sklearn pipeline по каким-то причинам вернёт
+    # numpy-массив вместо DataFrame.
+    # Для текущего пайплайна эта ветка не должна выполняться,
+    # но добавлена для типовой безопасности и совместимости с mypy
+    if isinstance(transformed_data, np.ndarray):
+        transformed_data = pd.DataFrame(transformed_data)
 
     # Создаём имя файла
     file_name = make_file_path(
@@ -1263,12 +1367,12 @@ if __name__ == "__main__":
     # Парсим аргументы из командной строки
     args = parser.parse_args()
 
-    # Получаем логер из импортированной функции.
+    # Получаем логер из функции setup_logging.
     # Настраиваем логирование на основе аргумента.
     logger = setup_logging(args.log_level)
 
     # Синхронизация verbose с --log-level (True если 'info' или 'debug', False если 'off')
-    # lля вывода  баров загрузки в функции load_dataset
+    # для вывода  баров загрузки даных в функции load_dataset
     verbose = args.log_level in ["info", "debug"]
 
     if logger is not None:
