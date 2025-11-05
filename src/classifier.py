@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+import pandas as pd
 from catboost import CatBoostClassifier, Pool
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import StratifiedKFold
@@ -25,19 +26,20 @@ class CatBoostEnsembleClassifier(
           предсказания моделей ансамбля через их веса (AUC или другая метрика)
 
     Attributes:
-        models_ (list): Список обученных моделей CatBoostClassifier
+        params_list (list[dict]): Список словарей с гиперпараметрами для каждой модели ансамбля
+                (N фолдов + 1 финальная модель).
+        weights_list (list[float]): Список весов для взвешивания предиктов
+            (один на каждую модель в ансамбле).
+        threshold (float): Порог отсечения для жёсткой классификации (predict).
+        cat_features (list[str]): Список названий категориальных фичей.
+            Если не передан, используется пустой список.
+        n_splits (int): Количество фолдов для разбиения данных (StratifiedKFold).
+        seed (int): Seed для воспроизводимости разбиения и моделей.
+        shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
+        logger (logging.Logger | None): Объект логгера для сообщений внутренней работы классификатора.
+        models_ (list[CatBoostClassifier]): Список обученных моделей CatBoostClassifier
             после вызова fit.
 
-    Methods:
-        fit(X, y): Обучает ансамбль моделей и сохраняет их.
-        fit_transform(X, y): Обучает модели и возвращает X без изменений
-            (для совместимости с пайплайнами).
-        transform(X): Возвращает X без изменений
-            (для совместимости с пайплайнами).
-        predict_proba(X): Возвращает взвешенное усреднённое предсказание
-            вероятностей положительного класса.
-        predict(X): Возвращает бинарные предсказания
-            с порогом 0.5 по умолчанию или переданному.
     """
 
     def __init__(
@@ -60,7 +62,7 @@ class CatBoostEnsembleClassifier(
             threshold (float): Порог отсечения для жёсткой классификации (predict).
                 По умолчанию 0.5.
             cat_features (list[str] | None): Список названий категориальных фичей.
-                Если не передан, используется пустой список.
+                По умолчанию None.
             n_splits (int): Количество фолдов для разбиения данных (StratifiedKFold).
                 По умолчанию 5.
             seed (int): Seed для воспроизводимости разбиения и моделей.
@@ -68,28 +70,31 @@ class CatBoostEnsembleClassifier(
             shuffle (bool): Флаг перемешивания данных при разбиении на фолды.
                 По умолчанию True.
             logger (logging.Logger | None): Объект логгера для сообщений внутренней работы классификатора.
-                По умолчанию None (без логирования).
+                По умолчанию None.
         """
-        self.params_list = params_list
-        self.weights_list = weights_list
-        self.threshold = threshold
-        self.cat_features = cat_features if cat_features is not None else []
-        self.n_splits = n_splits
-        self.seed = seed
-        self.shuffle = shuffle
-        self.logger = logger
+        self.params_list: list[dict] = params_list
+        self.weights_list: list[float] = weights_list
+        self.threshold: float = threshold
+        self.cat_features: list[str] = cat_features if cat_features is not None else []
+        self.n_splits: int = n_splits
+        self.seed: int = seed
+        self.shuffle: bool = shuffle
+        self.logger: logging.Logger | None = logger
+        self.models_: list[CatBoostClassifier] = []
 
-    def fit(self, X, y):
+    def fit(
+        self,
+        X: pd.DataFrame,
+        y: pd.Series,
+    ) -> "CatBoostEnsembleClassifier":
         """
         Обучает ансамбль моделей на разных фолдах и финальную модель
         на полном наборе данных.
-
         Args:
-            X (pd.DataFrame): Признаки.
-            y (pd.Series или np.array): Целевой признак.
-
+            X (pd.DataFrame): Тренировочный датафрейм.
+            y (pd.Series): Целевой признак.
         Returns:
-            self : Обученный объект классификатора с атрибутом models_,
+            CatBoostEnsembleClassifier : Обученный объект классификатора с атрибутом models_,
               содержащим список обученных моделей.
         """
         if self.logger is not None:
@@ -159,34 +164,40 @@ class CatBoostEnsembleClassifier(
         self.models_.append(model)
         return self
 
-    def fit_transform(
-        self,
-        X,
-        y=None,
-    ):
+    def fit_transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """
+        Возвращает датафрейм без изменений.
+        Метод добавлен для совместимости с Pipeline.
+        Args:
+            X (pd.DataFrame): Пандас датафрейм.
+        Returns:
+            pd.DataFrame: Исходный датафрейм без изменений.
+        """
         if self.logger is not None:
             self.logger.info("CLASSIFIER fit_transform")
-        # Обучаем классификатор
-        self.fit(X, y)
-        # Возвращаем X без изменений
         return X
 
-    def transform(self, X):
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """
+        Возвращает датафрейм без изменений.
+        Метод добавлен для совместимости с Pipeline.
+        Args:
+            X (pd.DataFrame): Пандас датафрейм.
+        Returns:
+            pd.DataFrame: Исходный датафрейм без изменений.
+        """
         if self.logger is not None:
             self.logger.info("CLASSIFIER transform")
-        # Возвращаем X без изменений
         return X
 
-    def predict_proba(self, X):
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
         """
         Предсказывает вероятности классов,
         усреднённые по всем моделям с учётом весов.
-
         Args:
-            X (pd.DataFrame): Матрица признаков.
-
+            X (pd.DataFrame): Пандас датафрейм.
         Returns:
-            np.ndarray: Массив вероятностей для классов 0 и 1,
+            np.ndarray: Массив предсказанных вероятностей для классов 0 и 1,
             размерностью (n_samples, 2).
         """
         if self.logger is not None:
@@ -203,16 +214,14 @@ class CatBoostEnsembleClassifier(
         mean_pred = np.sum(preds, axis=0) / np.sum(self.weights_list)
         return np.vstack([1 - mean_pred, mean_pred]).T
 
-    def predict(self, X):
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
         """
         Предсказывает классы на основе вероятностей с порогом 0.5
         по умолчанию либо с переданным, например
         при котором разница между TPR и FPR максимальна,
         либо подобранным с учётом бизнес логики.
-
         Args:
-            X (pd.DataFrame): Матрица признаков.
-
+            X (pd.DataFrame): Пандас датафрейм.
         Returns:
             np.ndarray: Массив предсказанных классов (0 или 1).
         """
