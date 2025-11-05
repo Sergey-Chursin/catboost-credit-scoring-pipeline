@@ -6,8 +6,8 @@ import pandas as pd
 import psutil
 
 """
-Модуль предоставляет инструменты мониторинга и оптимизации использования оперативной памяти 
-для выполнения пайплайна в Docker контейнерах.
+Модуль предоставляет инструменты мониторинга и оптимизации использования 
+оперативной памяти для выполнения пайплайна в Docker контейнерах.
 
 Содержит функции:
 Мониторинга - отслеживание потребления памяти процессом и объектами Python
@@ -16,17 +16,17 @@ import psutil
 
 """
 Создаём локальный логгер для этого модуля
-Он наследует настройки от root logger
-файла pipeline.py
+Настройки (уровень логирования, формат сообщений) наследуются от root logger, 
+который обычно конфигурируется в главном файле проекта (pipeline.py).
 """
 logger = logging.getLogger(__name__)
 
 
-def rss_process_statistic(df: pd.DataFrame):
+def rss_process_statistic(df: pd.DataFrame) -> None:
     """
     Логирует подробную статистику по использованию памяти и фрагментации DataFrame,
     включая размеры всех DataFrame и Series, находящихся в памяти процесса.
-    Выполняется при уровне логирования DEBUG.
+    Выполняется только при уровне логирования DEBUG.
 
     Выводит в лог:
         - Текущий объём оперативной памяти (RSS), занимаемый процессом,
@@ -40,14 +40,12 @@ def rss_process_statistic(df: pd.DataFrame):
             - Имя Series
             - Идентификатор объекта (id)
             - Количество Series
-
     Args:
         df (pd.DataFrame): Анализируемый DataFrame, для которого выводится статистика.
 
     Returns:
-        Отсутствует
+        None
     """
-    # Проверяем уровень логирования - функция выполняется только если DEBUG включен
     if not logger.isEnabledFor(logging.DEBUG):
         return
 
@@ -73,32 +71,30 @@ def rss_process_statistic(df: pd.DataFrame):
     logger.debug(f"Number of series in RAM: {series_count}")
 
 
-def cgroup_memory_statistic():
+def cgroup_memory_statistic() -> None:
     """
-    Читает метрики использования памяти и swap из файловой системы cgroup v2
-    и выводит их в лог в формате MiB(мебибайты) для согласованности с
-    выводом утилит мониторинга RAM. Предназначена для мониторинга
-    потребления ресурсов контейнера Docker или другой изолированной среды.
-    cgroup в Docker это все процессы контейнера.
+    Логирует метрики памяти и swap контейнера Docker через cgroup v2
+    в формате MiB(мебибайты) для согласованности с
+    выводом утилит мониторинга RAM.
 
     Читаемые метрики:
         - memory.current: текущее потребление физической памяти
         - memory.swap.current: текущее потребление swap
-
     Raises:
         Exception: При ошибках чтения файлов cgroup (файлы не найдены,
                   нет прав доступа, некорректный формат данных)
-
     Note:
         Работает только в Linux среде с поддержкой cgroup v2.
         В других ОС или при отсутствии cgroup логирует ошибку.
         Выполняется только при уровне логирования DEBUG.
+    Returns:
+        None
     """
-    # Проверяем уровень логирования - выполняем только если DEBUG включен
     if not logger.isEnabledFor(logging.DEBUG):
         return
 
     try:
+        # cgroup в Docker это все процессы контейнера.
         # Читаем файл /proc/self/cgroup чтобы узнать путь к нашей cgroup
         # Файл содержит строку вида: "0::/docker/1a2b3c4d..." для Docker контейнера
         with open("/proc/self/cgroup", "rt") as f:
@@ -132,8 +128,14 @@ def cgroup_memory_statistic():
     cgroup_dir = f"/sys/fs/cgroup{cgroup_path}"
 
     # Вспомогательная функция для безопасного чтения файлов
-    def read_file(path):
-        """Читает содержимое файла и возвращает строку или None при ошибке."""
+    def read_file(path: str) -> str | None:
+        """
+        Читает содержимое файла и возвращает строку или None при ошибке.
+         Args:
+             path (str): Путь к файлу
+         Return:
+             str | None: Содержимое файла в виде строки, либо None при ошибке.
+        """
         try:
             with open(path, "rt") as f:
                 return f.read().strip()
@@ -178,8 +180,8 @@ def memory_checkpoint(df: pd.DataFrame) -> pd.DataFrame:
 
     Алгоритм работы:
     - Выводит статистику RAM через функцию rss_process_statistic.
-    - Организует разрыв ссылок на старые версии DataFrame и Series через копирование со сменой имёни
-        DataFrame, также это устраняет фрагментацию памяти между столбцами.
+    - Организует разрыв ссылок на старые версии DataFrame и Series через копирование
+        со сменой имёни DataFrame, также это устраняет фрагментацию памяти между столбцами.
     - Выполняет сжатие кучи (heap) аллокатора в контейнере
       на Linux с glibc (ptmalloc2, задаётся Dockerfile, не меняется по ходу работы)
       вызывается malloc_trim(0): аллокатор glibc возвращает свободные страницы системе,
@@ -188,7 +190,6 @@ def memory_checkpoint(df: pd.DataFrame) -> pd.DataFrame:
 
     Args:
         df (pd.DataFrame): Исходный DataFrame.
-
     Returns:
         pd.DataFrame: Копия DataFrame, готовая для дальнейшей работы pipeline.
     """
@@ -228,7 +229,7 @@ def memory_checkpoint(df: pd.DataFrame) -> pd.DataFrame:
     return df_new
 
 
-def heap_trim():
+def heap_trim() -> None:
     """
     Контрольная точка управления памятью процесса под Linux/glibc:
     выполняет сжатие кучи (heap) аллокатора в контейнере
@@ -236,12 +237,15 @@ def heap_trim():
     вызывается malloc_trim(0): аллокатор glibc возвращает свободные страницы системе,
     что помогает снизить RSS процесса и избежать “залипаний” памяти.
 
-    Поведение:
+    Алгоритм работы:
     - Логирует текущее значение RSS процесса в MiB(мебибайты) для согласованности с
         выводом утилит мониторинга RAM.
     - Пытается загрузить libc.so.6 через ctypes и вызвать malloc_trim(0);
         при отсутствии libc фиксирует это в логе, при успехе логирует успешный вызов.
-    - Повторно логирует RSS после операции для оценки возможного эффекта “trimming” в текущем окружении
+    - Повторно логирует RSS после операции для оценки возможного эффекта “trimming”
+        в текущем окружении.
+    Returns:
+        None
     """
 
     logger.info("FUNCTION heap_trim")
@@ -265,13 +269,3 @@ def heap_trim():
 
     # Проверим потребление памяти по cgroup
     cgroup_memory_statistic()
-
-
-# Добавим защитный блок main для тестов
-if __name__ == "__main__":
-    # Настройка логгера для standalone тестирования
-    logging.basicConfig(
-        level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
-    )
-
-    pass
