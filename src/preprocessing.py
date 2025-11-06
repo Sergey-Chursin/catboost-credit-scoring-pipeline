@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, cast
+from typing import Any, cast
 
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -40,8 +40,8 @@ from src.decorators import memory_monitor_function
 
 """
 Создаём локальный логгер для этого модуля
-Он наследует настройки от root logger
-файла (pipeline.py)
+Настройки (уровень логирования, формат сообщений) наследуются от root logger, 
+который обычно конфигурируется в главном файле проекта (pipeline.py).
 """
 logger = logging.getLogger(__name__)
 
@@ -53,10 +53,10 @@ def convert_all_to_numeric_preprocessing(df: pd.DataFrame) -> pd.DataFrame:
     с заменой ошибок на NaN (errors='coerce').
 
     Args:
-        df : Исходный DataFrame, содержащий колонки 'id' и 'rn'.
+        df (pd.DataFrame): Исходный DataFrame, содержащий колонки 'id' и 'rn'.
 
     Returns:
-        pandas.DataFrame : Копия исходного DataFrame
+        pd.DataFrame : DataFrame
         где все колонки приведены к числовому типу.
     """
 
@@ -69,20 +69,21 @@ def convert_all_to_numeric_preprocessing(df: pd.DataFrame) -> pd.DataFrame:
 
 @memory_monitor_function
 def cast_columns_by_map_preprocessing(
-    df: pd.DataFrame, cast_type_map: Dict[str, str]
+    df: pd.DataFrame,
+    cast_type_map: dict[str, str],
 ) -> pd.DataFrame:
     """
     Приводит типы указанных колонок DataFrame к типам, заданным в словаре cast_type_map.
 
     Args:
-        df : Исходный DataFrame.
-        cast_type_map : dict  Словарь соответствия {имя_колонки(str): тип(str)}.
+        df (pd.DataFrame): Исходный DataFrame.
+        cast_type_map (dict[str, str]): Словарь соответствия {имя_колонки(str): тип(str)}.
     Returns:
         pd.DataFrame : DataFrame, где указанные колонки приведены к нужному типу.
     """
 
     # Согласно логике preprocessing_pipe в датасете не должно остаться NaN,
-    # но всё же введём проверку на всякий случай.
+    # но для безопасности введём проверку.
     if df.isnull().any().any():
         raise ValueError(
             "Found NaN values in DataFrame. All missing values must be imputed before converting."
@@ -91,8 +92,6 @@ def cast_columns_by_map_preprocessing(
         if col in df.columns:
             df[col] = df[col].astype(cast(Any, dtype), copy=False)
     #  cast(Any, dtype) - явно указывает mypy что мы уверены в типе к которому приводим колонку
-
-
     return df
 
 
@@ -102,12 +101,10 @@ def drop_duplicates_preprocessing(df: pd.DataFrame) -> pd.DataFrame:
     Удаляет дубликаты строк из DataFrame.
 
     Args:
-        df : Исходный DataFrame.
+        df (pd.DataFrame): Исходный DataFrame.
 
     Returns:
         pd.DataFrame : DataFrame без дублирующихся строк.
-            Если дубликаты найдены и удалены — новый объект.
-            Если дубликаты не найдены — возвращается исходный DataFrame без изменений.
     """
 
     # Подсчитываем количество дублирующихся строк
@@ -117,53 +114,64 @@ def drop_duplicates_preprocessing(df: pd.DataFrame) -> pd.DataFrame:
         logger.info(f"{n_dupes} duplicate records found! Removing duplicates.")
 
         df = df.drop_duplicates(ignore_index=True)
-
         return df
 
     else:
         # Если дубликатов нет — уведомляем и возвращаем исходный DataFrame
         logger.info("No duplicates found, no cleanup operation required.")
-
         return df
 
 
 class SampleMedianImputer(BaseEstimator, TransformerMixin):
     """
-    Класс для imputation пропусков медианами.
-
-    Этот трансформер наследует от BaseEstimator и TransformerMixin
-    для интеграции в sklearn pipelines.
-    Медианы вычисляются на подвыборке (sample_frac) для ускорения на больших датасетах.
-
-    Args:
-        sample_frac (float): Доля выборки для вычисления медиан (default 0.1, т.е. 10%).
+    Импутер для заполнения пропусков в признаках датасета медианами
+    вычисленными на подвыборке датасета для ускорения вычислений на больших датасетах.
+    Оценки медианы будут приближены к реальным медианам, но не совпадать с ними.
+    Такое решение это компромисс между точностью и производительностью.
 
     Attributes:
-        medians_ (pd.Series): Вычисленные медианы по колонкам (сохраняются после fit).
+        sample_frac (float): Доля выборки для вычисления медиан.
+        random_state (int): Зерно рандома для воспроизводимости результатов.
+        medians_ (pd.Series | None): Series с медианами столбцов, вычисляется после fit.
     """
 
-    def __init__(self, sample_frac=0.1, random_state=None):
-        # Доля выборки для вычисления медиан
-        self.sample_frac = sample_frac
-        # Атрибут для хранения медиан
-        self.medians_ = None
-        self.random_state = random_state
+    def __init__(
+        self,
+        sample_frac: float = 0.1,
+        random_state: int | None = None,
+    ):
+        """
+        Args:
+            sample_frac (float): Доля выборки для вычисления медиан.
+                По умолчанию 0.1 (10%).
+            random_state (int | None): Зерно рандома для воспроизводимости результатов.
+                По умолчанию None.
+        """
+        self.sample_frac: float = sample_frac
+        self.random_state: int = random_state if random_state is not None else 0
+        self.medians_: pd.Series | None = None
 
-    def fit(self, X, y=None):
-        # Создаём подвыборку датасета, random_state для воспроизводимости
+    def fit(self, X: pd.DataFrame, y: None = None) -> "SampleMedianImputer":
+        """
+        Создаёт атрибут medians_ - pd.Series содержащий медианы признаков подвыборки датасета.
+        Args:
+            X (pd.DataFrame): Тренировочный датафрейм.
+            y (None): Добавлен для совместимости с родительским классом BaseEstimator sklearn.
+        Returns:
+            self : SampleMedianImputer - обученный импутер.
+        """
+        # Создаём подвыборку датасета
         sample = X.sample(frac=self.sample_frac, random_state=self.random_state)
         # Вычисляем и сохраняем медианы
         self.medians_ = sample.median()
         return self
 
-    def transform(self, X):
-        # Заполняем пропуски медианами
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
+        """
+        Заполняет пропуски в признаках датасета медианами.
+        Args:
+            X (pd.DataFrame): Датафрейм для обработки.
+        Returns:
+            X (pd.DataFrame): Обработанный Датафрейм.
+        """
         return X.fillna(self.medians_)
-
-
-# Добавим защитный блок main для тестов
-if __name__ == "__main__":
-    # Настройка логгера только для standalone запуска
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(message)s")
-
-    pass
