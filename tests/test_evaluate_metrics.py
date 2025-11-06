@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.pipeline import Pipeline
+from src.data_utils import SplitDataset
 
 # Импортируем тестируемые функции
 from src.evaluate_metrics import (
@@ -13,7 +15,7 @@ from src.evaluate_metrics import (
 # ---------------------- ТЕСТЫ ДЛЯ evaluate_auc_score ----------------------
 
 
-def test_evaluate_auc_score_binary_labels_and_probs(capsys):
+def test_evaluate_auc_score_binary_labels_and_probs(capsys) -> None:
     """
     Проверяем, что evaluate_auc_score:
     1. Корректно считает AUC для идеально спрогнозированных вероятностей.
@@ -21,7 +23,7 @@ def test_evaluate_auc_score_binary_labels_and_probs(capsys):
     3. Печатает значение в stdout при verbose=True.
     """
     # Истинные метки классов
-    y_true = np.array([0, 0, 1, 1])
+    y_true = pd.Series([0, 0, 1, 1])
     # Предсказанные вероятности для класса 1
     y_score = np.array([0.1, 0.4, 0.6, 0.9])
 
@@ -45,7 +47,7 @@ def test_evaluate_auc_score_with_2d_array():
     Проверяем, что если на вход подан двумерный массив вероятностей shape=(n, 2),
     используется второй столбец (вероятности класса 1).
     """
-    y_true = np.array([0, 1])
+    y_true = pd.Series([0, 1])
     y_score_2d = np.array([[0.8, 0.2], [0.1, 0.9]])
 
     auc = evaluate_auc_score(y_true, y_score_2d, verbose=False)
@@ -56,13 +58,13 @@ def test_evaluate_auc_score_with_2d_array():
 # ---------------------- ТЕСТЫ ДЛЯ evaluate_accuracy_score ----------------------
 
 
-def test_evaluate_accuracy_score_perfect(capsys):
+def test_evaluate_accuracy_score_perfect(capsys) -> None:
     """
     Проверяем, что evaluate_accuracy_score:
     1. Считает точность равной 1.0, если все прогнозы правильные.
     2. Напечатает строку с Accuracy при verbose=True.
     """
-    y_true = np.array([0, 1, 1, 0])
+    y_true = pd.Series([0, 1, 1, 0])
     y_pred = np.array([0, 1, 1, 0])
 
     acc = evaluate_accuracy_score(y_true, y_pred, verbose=True)
@@ -76,11 +78,11 @@ def test_evaluate_accuracy_score_perfect(capsys):
     assert "Accuracy on test set" in out
 
 
-def test_evaluate_accuracy_score_partial():
+def test_evaluate_accuracy_score_partial() -> None:
     """
     Проверяем, что accuracy считается верно при частично правильных прогнозах.
     """
-    y_true = np.array([0, 1, 1, 0])
+    y_true = pd.Series([0, 1, 1, 0])
     y_pred = np.array([0, 0, 1, 0])  # 3 из 4 правильные
 
     acc = evaluate_accuracy_score(y_true, y_pred, verbose=False)
@@ -104,7 +106,7 @@ def test_evaluate_accuracy_score_partial():
         (np.array([0, 1], dtype=int), int, 1, True),
     ],
 )
-def test_pred_and_metrics_compatible(array, dtype, ndim, expected):
+def test_pred_and_metrics_compatible(array, dtype, ndim, expected) -> None:
     """
     Проверка, что функция pred_and_metrics_compatible корректно валидирует
     формат предсказаний для классовых и вероятностных метрик.
@@ -114,98 +116,120 @@ def test_pred_and_metrics_compatible(array, dtype, ndim, expected):
         "acc" if np.issubdtype(array.dtype, np.integer) and array.ndim == 1 else "auc"
     )
 
-    result = pred_and_metrics_compatible(array, eval_metric, classes_metrics)
+    result = pred_and_metrics_compatible(
+        array,
+        eval_metric,
+        classes_metrics,
+    )
 
     # Проверяем, что возвращаемое функцией булево совпадает с ожидаемым
     assert result == expected
 
 
 # ---------------------- ТЕСТЫ ДЛЯ compute_and_log_metrics ----------------------
+class DummyPipe:
+    """
+    dummy-объект (пустышка) для имитации пайплайна
+    """
+
+    def fit(self, X, y):
+        """
+        Метод нужен для совместимости с sklearn,
+        чтобы пайплайн мог считаться обученным
+        Классы и вероятности в методах предиктов
+        совпадают  с y_test в фикстуре train_test_dict
+        """
+        self.is_fitted_ = True
+        return self
+
+    def predict(self, X):
+        return np.array([0, 1, 0])
+
+    def predict_proba(self, X):
+        return np.array([[0.8, 0.2], [0.1, 0.9], [0.6, 0.4]])
 
 
-def test_compute_and_log_metrics_with_y_pred_class_metric():
+def test_compute_and_log_metrics_with_y_pred_class_metric(
+    train_test_dict: SplitDataset,
+) -> None:
     """
     Если передан y_pred для accuracy, pipe не вызывается.
     """
-    train_test_dict = {
-        "X_test": pd.DataFrame({"x1": [1, 2, 3]}),
-        "y_test": np.array([0, 1, 0]),
-    }
     classes_metric_list = ["acc"]
     y_pred = np.array([0, 1, 0])
 
     result = compute_and_log_metrics(
         eval_metric="acc",
-        pipe=None,
+        pipe=Pipeline(steps=[]),
         train_test_dict=train_test_dict,
         classes_metric_list=classes_metric_list,
         y_pred=y_pred,
     )
 
     # np.isclose — проверяем, что возвращённая accuracy близка к 1.0
+    assert result is not None
     assert np.isclose(result, 1.0)
 
 
-def test_compute_and_log_metrics_without_y_pred_class_metric():
+def test_compute_and_log_metrics_without_y_pred_class_metric(
+    train_test_dict: SplitDataset,
+) -> None:
     """
     Если y_pred не передан — вызывается pipe.predict.
     """
 
-    # DummyPipe это минимальная версия pipeline
-    class DummyPipe:
-        def predict(self, X):
-            return np.array([0, 1, 0])
-
-    train_test_dict = {
-        "X_test": pd.DataFrame({"x1": [1, 2, 3]}),
-        "y_test": np.array([0, 1, 0]),
-    }
+    dummy_pipe = Pipeline([("dummy", DummyPipe())])
+    dummy_pipe.fit(
+        train_test_dict["X_train"],
+        train_test_dict["y_train"],
+    )
 
     result = compute_and_log_metrics(
         eval_metric="acc",
-        pipe=DummyPipe(),
+        pipe=dummy_pipe,
         train_test_dict=train_test_dict,
         classes_metric_list=["acc"],
     )
+    assert result is not None
     # проверяем, что точность близка к 1.0
     assert np.isclose(result, 1.0)
 
 
-def test_compute_and_log_metrics_without_y_pred_prob_metric():
+def test_compute_and_log_metrics_without_y_pred_prob_metric(
+    train_test_dict: SplitDataset,
+) -> None:
     """
     Если y_pred не передан, а метрика вероятностная — используется pipe.predict_proba.
     """
 
-    class DummyPipe:
-        def predict_proba(self, X):
-            return np.array([[0.8, 0.2], [0.1, 0.9], [0.6, 0.4]])
-
-    train_test_dict = {
-        "X_test": pd.DataFrame({"x1": [1, 2, 3]}),
-        "y_test": np.array([0, 1, 0]),
-    }
+    dummy_pipe = Pipeline([("dummy", DummyPipe())])
+    dummy_pipe.fit(
+        train_test_dict["X_train"],
+        train_test_dict["y_train"],
+    )
 
     result = compute_and_log_metrics(
         eval_metric="auc",
-        pipe=DummyPipe(),
+        pipe=dummy_pipe,
         train_test_dict=train_test_dict,
         classes_metric_list=["acc"],
     )
 
+    assert result is not None
     # Проверяем, что result лежит в нормальном диапазоне для метрик (0..1)
     assert 0.0 <= result <= 1.0
     # Проверяем, что AUC получился практически идеальным (1.0)
     assert np.isclose(result, 1.0)
 
 
-def test_compute_and_log_metrics_off_mode():
+def test_compute_and_log_metrics_off_mode(train_test_dict: SplitDataset) -> None:
     """
     В режиме 'off' функция возвращает None.
     """
     res = compute_and_log_metrics(
         eval_metric="off",
-        pipe=None,
-        train_test_dict={"X_test": None, "y_test": None},
+        pipe=Pipeline(steps=[]),
+        train_test_dict=train_test_dict,
         classes_metric_list=["acc"],
     )
 
