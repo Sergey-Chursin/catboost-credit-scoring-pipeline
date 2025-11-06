@@ -4,13 +4,21 @@ import os
 import pandas as pd
 import requests
 
-from src.config import PRE_FEATURES, RAW_DATA_PATH, TRANSFORM_DATA_PATH
+from src.config import (
+    PRE_FEATURES,
+    RAW_DATA_PATH,
+    TRANSFORM_DATA_PATH,
+)
 from src.data_utils import load_dataset
 
 pd.set_option("display.max_columns", None)
 
 if __name__ == "__main__":
-    data = load_dataset(RAW_DATA_PATH, num_parts_total=1, columns=PRE_FEATURES)
+    data = load_dataset(
+        RAW_DATA_PATH,
+        num_parts_total=1,
+        columns=PRE_FEATURES,
+    )
 
     if data is not None:
         print("data.shape:", data.shape)
@@ -30,7 +38,11 @@ if __name__ == "__main__":
         # Сохраним запрос
         filename = os.path.join(TRANSFORM_DATA_PATH, "one_id_one_loan.json")
         with open(filename, "w", encoding="utf-8") as f:
-            json.dump(payload_one_id_one_loan, f, ensure_ascii=False)
+            json.dump(
+                payload_one_id_one_loan,
+                f,
+                ensure_ascii=False,
+            )
 
         response = requests.post(
             url="http://localhost:8000/predict",
@@ -51,7 +63,11 @@ if __name__ == "__main__":
         # Сохраним запрос
         filename = os.path.join(TRANSFORM_DATA_PATH, "one_id_many_loans.json")
         with open(filename, "w", encoding="utf-8") as f:
-            json.dump(payload_one_id_many_loans, f, ensure_ascii=False)
+            json.dump(
+                payload_one_id_many_loans,
+                f,
+                ensure_ascii=False,
+            )
 
         response = requests.post(
             url="http://localhost:8000/predict",
@@ -79,7 +95,11 @@ if __name__ == "__main__":
         # Сохраним запрос
         filename = os.path.join(TRANSFORM_DATA_PATH, "many_id_one_loan.json")
         with open(filename, "w", encoding="utf-8") as f:
-            json.dump(payload_many_id_one_loan, f, ensure_ascii=False)
+            json.dump(
+                payload_many_id_one_loan,
+                f,
+                ensure_ascii=False,
+            )
 
         response = requests.post(
             url="http://localhost:8000/predict",
@@ -107,7 +127,11 @@ if __name__ == "__main__":
         # Сохраним запрос
         filename = os.path.join(TRANSFORM_DATA_PATH, "many_id_many_loans.json")
         with open(filename, "w", encoding="utf-8") as f:
-            json.dump(payload_many_id_many_loans, f, ensure_ascii=False)
+            json.dump(
+                payload_many_id_many_loans,
+                f,
+                ensure_ascii=False,
+            )
 
         response = requests.post(
             url="http://localhost:8000/predict",
