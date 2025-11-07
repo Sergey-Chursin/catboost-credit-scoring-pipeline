@@ -1,9 +1,11 @@
 import pickle
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.dummy import DummyClassifier
 from sklearn.pipeline import Pipeline
 from src.pipeline import (
     load_pipeline,
@@ -15,7 +17,7 @@ from src.pipeline import (
 
 
 # ------- Тест для main_pipeline -------------
-def test_main_pipeline_returns_pipeline():
+def test_main_pipeline_returns_pipeline() -> None:
     """
     Проверяет, что main_pipeline возвращает объект sklearn.pipeline.Pipeline,
     и что в пайплайне есть требуемые шаги - 'preprocessing' и 'classifier'.
@@ -29,7 +31,7 @@ def test_main_pipeline_returns_pipeline():
         n_splits=2,
         seed=42,
         shuffle=True,
-        prop_features_dict={"f": 1},
+        prop_features_dict={"f": [1]},
         float_downcast_columns_list=[],
         norma="rn_max",
         mean_freq_source_list=["mean_f"],
@@ -50,21 +52,33 @@ def test_main_pipeline_returns_pipeline():
 
 
 # ------- Тест для load_pipeline -------------
-def test_load_pipeline_success(tmp_path):
+def test_load_pipeline_success(tmp_path: Path) -> None:
     """
     Проверяет успешную загрузку объекта пайплайна из файла.
     """
-    obj = {"some": "pipeline"}
+    # Создаём настоящий объект Pipeline с минимальным набором функций
+    # Для стратегии 'constant' классификатор всегда возвращает
+    # одну и ту же константную метку класса
+    dummy_pipeline = Pipeline(
+        steps=[("dummy", DummyClassifier(strategy="constant", constant=1))]
+    )
+
     path = tmp_path / "pipeline.pkl"
     with open(path, "wb") as f:
-        pickle.dump(obj, f)
+        pickle.dump(dummy_pipeline, f)
 
     loaded = load_pipeline(str(path))
+
     # Проверяем, что содержимое файла успешно загружено
-    assert loaded == obj
+    # Проверяем, что это объект Pipeline
+    assert isinstance(loaded, Pipeline)
+
+    # Проверяем, что содержимое загружено правильно (количество шагов)
+    assert len(loaded.steps) == 1
+    assert loaded.steps[0][0] == "dummy"
 
 
-def test_load_pipeline_not_found():
+def test_load_pipeline_not_found() -> None:
     """
     Проверяет, что при попытке загрузить отсутствующий пайплайн
     возникает FileNotFoundError.
@@ -91,13 +105,13 @@ def test_load_pipeline_not_found():
 @patch("src.pipeline.check_data_folder_and_count_files")
 @patch("src.pipeline.pickle.dump")
 def test_run_train_coordinator_full_cycle(
-    mock_pickle_dump,
-    mock_check_count,
-    mock_load_dataset,
-    mock_split_dataset,
-    mock_main_pipeline,
-    tmp_path,
-):
+    mock_pickle_dump: MagicMock,
+    mock_check_count: MagicMock,
+    mock_load_dataset: MagicMock,
+    mock_split_dataset: MagicMock,
+    mock_main_pipeline: MagicMock,
+    tmp_path: Path,
+) -> None:
     """
     Проверяет, что run_train_coordinator корректно проходит все этапы
     при работе с мок-данными: вызывает main_pipeline, осуществляет fit,
@@ -142,7 +156,7 @@ def test_run_train_coordinator_full_cycle(
         shuffle=True,
         eval_metric="off",
         verbose=False,
-        prop_features_dict={"feature": 1},
+        prop_features_dict={"feature": [1]},
         norma="rn_max",
         mean_freq_source_list=["f"],
         drop_list=["d"],
@@ -172,14 +186,14 @@ def test_run_train_coordinator_full_cycle(
 @patch("src.pipeline.save_predictions_with_id")
 @patch("src.pipeline.compute_and_log_metrics")
 def test_run_test_coordinator_flow(
-    mock_compute_metrics,
-    mock_save,
-    mock_make_file_path,
-    mock_split,
-    mock_load,
-    mock_check,
-    mock_load_pipe,
-):
+    mock_compute_metrics: MagicMock,
+    mock_save: MagicMock,
+    mock_make_file_path: MagicMock,
+    mock_split: MagicMock,
+    mock_load: MagicMock,
+    mock_check: MagicMock,
+    mock_load_pipe: MagicMock,
+) -> None:
     """
     Проверяет, что run_test_coordinator проходит все этапы с моками:
     - пайплайн загружается,
@@ -239,8 +253,12 @@ def test_run_test_coordinator_flow(
 @patch("src.pipeline.make_file_path")
 @patch("src.pipeline.save_predictions_with_id")
 def test_run_inference_coordinator_flow(
-    mock_save, mock_make_file_path, mock_load_dataset, mock_check, mock_load_pipe
-):
+    mock_save: MagicMock,
+    mock_make_file_path: MagicMock,
+    mock_load_dataset: MagicMock,
+    mock_check: MagicMock,
+    mock_load_pipe: MagicMock,
+) -> None:
     """
     Проверяет, что run_inference_coordinator проходит полный процесс получения
     и сохранения предсказаний на новых данных:
