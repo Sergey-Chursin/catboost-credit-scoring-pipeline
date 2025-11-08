@@ -1,5 +1,3 @@
-добавить pyproject.toml в структуру
-
 # Credit Scoring with CatBoost Ensemble
 *Кредитный скоринг с ансамблем CatBoost*
 
@@ -62,7 +60,7 @@ All stages of data preprocessing, training, inference, and model evaluation are 
 
 Particular attention is paid to optimizing the algorithm's operation with a large dataset (over 26 million rows) in a Docker container with a 16 GB RAM limit. To achieve this, custom tools for memory monitoring and management are used, data is loaded and processed in batches, missing values are imputed with the median calculated on a subsample, and techniques like mask/transform are used for aggregation and feature construction instead of merge/agg, among other methods.
 
-The code is organized according to the principles of modularity and separation of concerns: all parameters are centralized in a configuration file, and the main blocks are implemented as separate functions and classes, ensuring easy integration into new projects and convenient adaptation to various tasks.
+The code is organized according to the principles of modularity and separation of concerns: all parameters are centralized in a constants file, and the main blocks are implemented as separate functions and classes, ensuring easy integration into new projects and convenient adaptation to various tasks.
 
 The ensemble architecture follows classic Data Science competition practices: five models are trained on separate folds with individual parameter tuning, while the sixth is trained on the full training dataset using the best fold’s optimal parameters. Final probabilities are averaged using weights proportional to each model’s validation AUC, and for binary classification, an optimal threshold is chosen to maximize the difference between TPR and FPR or to meet a required TPR as dictated by business logic.
 
@@ -341,6 +339,7 @@ python -m src.query
 ---
 
 ## Структура проекта / Project Structure
+- `api/` -  — пакет веб-сервиса FastAPI (основной код приложения: точка входа, роутеры, схемы)
 - `data/` — данные проекта:
   - `processed/` — обработанные данные
   - `raw/` — исходные данные в формате Parquet
@@ -355,6 +354,7 @@ python -m src.query
 - `models/` — обученные модели и пайплайны
 - `notebooks/` — Jupyter-ноутбуки исследовательской части и оптимизации гиперпараметров  
 - `predictions/` — результаты инференса и тестовых предиктов
+- `pyproject.toml` - конфигурация инструментов сборки, линтинга (ruff), типизации (mypy) и форматирования кода
 - `pytest.ini` — конфигурация для pytest
 - `README.md` — описание и инструкция по проекту
 - `resources/` — вспомогательные материалы (описание задания и методички)
@@ -536,7 +536,7 @@ debug - Режим отладки - вывод статистик по испо�
 В отличие от функций в исследовательской части проекта, в которые подаются исходный и целевой датасеты,
 функции пайплайна работают только с исходным датасетом, что соответствует принципам scikit-learn.  
 Так же внесёны изменения для оптимизации RAM описанные ниже.  
-Функции mean_value_frequency_feature_pipeline и definite_value_proportion_features_pipeline генерирующие основную часть признаков почти избавлены от внутренних зависимостей и управляются через списки и словари задаваемые из конфигурационного файла config.py.  
+Функции mean_value_frequency_feature_pipeline и definite_value_proportion_features_pipeline генерирующие основную часть признаков почти избавлены от внутренних зависимостей и управляются через списки и словари задаваемые из конфигурационного файла constants.py.  
 Это позволяет гибко настраивать и изменять состав признаков без вмешательства в основной код.
 
 #### Кастомный классификатор / Custom Classifier
@@ -546,10 +546,10 @@ debug - Режим отладки - вывод статистик по испо�
 в пайплайны scikit-learn — fit, predict, predict_proba, а также transform и fit-transform для совместимости с пайплайном.
 
 #### Конфигурация и управление / Configuration and management
-В проекте реализована централизованная архитектура управления - все ключевые параметры задаются как константы в config.py и передаются в пайплайн через единую точку входа — блок main в pipeline.py, откуда они явно передаются в целевые функции.  
+В проекте реализована централизованная архитектура управления - все ключевые параметры задаются как константы в constants.py и передаются в пайплайн через единую точку входа — блок main в pipeline.py, откуда они явно передаются в целевые функции.  
 Такой подход разделяет логику выполнения от изменяемых параметров, что позволяет легко адаптировать пайплайн для новых экспериментов или проектов без изменения основного кода.
 
-Константы в конфигурационном файле сгруппированы по следующим категориям:  
+Константы в файле constants.py сгруппированы по следующим категориям:  
 ##### Настройки путей  
   - Директории для чтения исходных данных, сохранения промежуточных результатов и финальных артефактов (моделей, предиктов).  
 ##### Параметры данных:  

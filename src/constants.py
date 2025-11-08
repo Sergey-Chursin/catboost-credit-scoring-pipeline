@@ -300,8 +300,8 @@ MEAN_FREQ_SOURCE_LIST: list[str] = [
 NORMA: str = "rn_max"
 
 """
-Список признаков для удаления в функции 
-definite_value_proportion_features_pipeline
+Список признаков для удаления в трансформере 
+MeanValueFrequencyTransformer
 Сформирован вручную
 """
 DROP_LIST_MEAN_VALUE_FREQUENCY_FEATURE: list[str] = [
