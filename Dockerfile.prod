@@ -22,6 +22,7 @@ WORKDIR /app
 
 # Копируем минимум файлов для работы сервиса
 COPY src /app/src
+COPY api /app/api
 # Создаём новую папку models чтобы не копировать все модели из существующей models
 RUN mkdir -p /app/models
 # Копируем в неё обученный пайплайн
@@ -32,7 +33,7 @@ EXPOSE 8000
 
 # Запускаем внутри контейнера сервер Uvicorn, который стартует FastAPI-приложение app 
 # из файла app.py, и слушает все входящие подключения на порту 8000 снаружи и внутри контейнера.
-CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # Чистим кеш conda
 RUN conda clean -afy

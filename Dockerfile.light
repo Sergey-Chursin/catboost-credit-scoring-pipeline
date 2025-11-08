@@ -24,6 +24,7 @@ WORKDIR /app
 COPY data /app/data
 COPY src /app/src
 COPY predictions /app/predictions
+COPY api /app/api
 # Создаём новую папку models чтобы не копировать все модели из существующей models
 RUN mkdir -p /app/models
 # Копируем в неё обученный пайплайн
