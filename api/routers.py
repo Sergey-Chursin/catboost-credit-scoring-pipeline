@@ -1,6 +1,6 @@
 import pandas as pd
 from fastapi import APIRouter, HTTPException
-from src.config import PIPELINE_PATH, THRESHOLD
+from src.constants import PIPELINE_PATH, THRESHOLD
 from src.log_config import setup_logging
 from src.pipeline import load_pipeline
 

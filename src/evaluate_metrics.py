@@ -9,8 +9,8 @@ from src.data_utils import SplitDataset
 
 """
 Создаём локальный логгер для этого модуля
-Он наследует настройки от root logger
-импортирующего файла (pipeline.py)
+Настройки (уровень логирования, формат сообщений) наследуются от root logger, 
+который обычно конфигурируется в главном файле проекта (pipeline.py).
 """
 logger = logging.getLogger(__name__)
 

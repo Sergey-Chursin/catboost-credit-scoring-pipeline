@@ -11,7 +11,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
 
 from src.classifier import CatBoostEnsembleClassifier
-from src.config import (
+from src.constants import (
     CAST_TYPE_MAP,
     CAT_FEATURES,
     CLASSES_METRIC_LIST,

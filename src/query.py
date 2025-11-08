@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import requests
 
-from src.config import (
+from src.constants import (
     PRE_FEATURES,
     RAW_DATA_PATH,
     TRANSFORM_DATA_PATH,
