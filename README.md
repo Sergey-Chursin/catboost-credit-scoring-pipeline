@@ -241,12 +241,12 @@ cd catboost-credit-scoring-pipeline
 Перед запуском убедитесь, что Docker Desktop включён и работает.
 Для запуска light версии:  
 ```shell
-docker-compose run --service-ports -it --rm light bash
+docker compose run --service-ports -it --rm light bash
 ```
 
 Для запуска jupyter версии:
 ```shell
-docker-compose run --service-ports -it --rm jupyter bash
+docker compose run --service-ports -it --rm jupyter bash
 ```
 
 4. Проверьте работу
@@ -315,7 +315,7 @@ exit
 1. В конфигурации api cборка образа, запуск контейнера и старт приложения производится одной командой
 
 ```shell
-docker-compose up api
+docker compose up api
 ```
 
 2. Для запуска API сервиса в других режимах выполните
