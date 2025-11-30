@@ -1,7 +1,7 @@
 name: Skill_box_ML_Jun_Final_project_3.12
 channels:
-  - conda-forge
   - defaults
+  - conda-forge
 dependencies:
   - catboost=1.2.7
   - fastparquet=2024.11.0
@@ -32,6 +32,7 @@ dependencies:
   - pydantic-core=2.33.2
   - uvicorn=0.37.0
   - uvicorn-standard=0.37.0
+  - pip
   - pip:
       - loguru==0.7.3
       - pipdeptree==2.26.0
